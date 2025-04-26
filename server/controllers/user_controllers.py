@@ -51,7 +51,6 @@ def create_user():
 def get_user():
     try:
         data = request.get_json()
-        print("The data is daskjfafbadfbwejbh",data)
         wallet_address = data.get("wallet_address")
         smart_wallet_address = data.get("smart_wallet_address")
         print(wallet_address,smart_wallet_address)
