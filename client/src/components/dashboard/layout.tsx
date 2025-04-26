@@ -17,9 +17,12 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from "@/components/ui/sidebar"
+import { useRouter } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-// import { ConnectionButton } from "@/app/(auth)/signin/page"
+import { ConnectButton } from "thirdweb/react"
+import { client } from "@/app/client"
+import { generatePayload, isLoggedIn, login, logout } from "@/actions/auth"
 import {
   LayoutDashboard,
   MessageSquare,
@@ -32,12 +35,14 @@ import {
   CreditCard,
 } from "lucide-react"
 import Link from "next/link"
+import { sepolia } from "thirdweb/chains"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const router = useRouter()
   const pathname = usePathname()
   const [isMounted, setIsMounted] = useState(false)
 
@@ -105,7 +110,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </SidebarContent>
           <SidebarFooter className="p-4">
             <div className="flex items-center gap-3">
-            {/* <ConnectionButton /> */}
+              {/* <ConnectionButton /> */}
+              <ConnectButton
+                client={client}
+                accountAbstraction={{
+                  chain: sepolia,
+                  sponsorGas: true,
+                }}
+                auth={{
+                  isLoggedIn: async (address) => {
+                    console.log("checking if logged in!", { address })
+                    return await isLoggedIn()
+                  },
+                  doLogin: async (params) => {
+                    console.log("logging in!")
+                    await login(params)
+                    // setLoggedIn(true)
+                  },
+                  getLoginPayload: async ({ address }) => generatePayload({ address, chainId: 11155111 }),
+                  doLogout: async () => {
+                    console.log("logging out!")
+                    await logout()
+                    // setLoggedIn(false)
+                    router.push("/signin")
+                  },
+                }}
+              />
             </div>
           </SidebarFooter>
         </Sidebar>

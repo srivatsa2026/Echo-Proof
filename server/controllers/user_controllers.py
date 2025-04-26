@@ -64,9 +64,9 @@ def get_user():
 
         if response.data:
             print("The response data is ",response)
-            return jsonify({"user":response.data, "message":"user exists"}), 200
+            return jsonify({"user":response.data, "success":"user exists"}), 200
         else:
-            return jsonify({"error": "User not found.Please signup first"}), 404
+            return jsonify({"message": "User not found.Please signup first"}), 404
 
     except Exception as e:
         print(f"❌ Error in get_user: {str(e)}")
