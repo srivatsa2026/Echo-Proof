@@ -1,195 +1,134 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
-import { ConnectButton, useConnectedWallets } from "thirdweb/react"
-import { client } from "../../client"
-import { generatePayload, isLoggedIn, login, logout } from "@/actions/auth"
-import { sepolia } from "thirdweb/chains"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import WalletButton from "../connection-button"
+import { BlockchainAnimation } from "@/components/motion-animation/node-animation"
+import { Logo } from "@/components/logo/logo"
+import { useActiveWallet } from "thirdweb/react"
+import axiosInstance from "@/lib/axios"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast" // <- useToast hook
+import Cookies from "js-cookie" // at the top
 import axios from "axios"
-import Cookies from "js-cookie"
 
 export default function SignInPage() {
-  const [user, setUser] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [isChecking, setIsChecking] = useState(false)
-  const [verified, setVerified] = useState(false) // NEW: To track manual verification
-  const { toast } = useToast()
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const activeWalletAddress = useActiveWallet()
   const router = useRouter()
-  const wallets = useConnectedWallets()
+  const { toast } = useToast() // <- instantiate toast
 
-  // Check login status initially
-  useEffect(() => {
-    const checkLoginStatus = async () => {
-      try {
-        const isUserLoggedIn = await isLoggedIn()
-        setLoggedIn(isUserLoggedIn)
-        
-        if (isUserLoggedIn && user && verified) {
-          router.push("/dashboard")
-        }
-      } catch (error) {
-        console.error("Error checking login status:", error)
-      }
-    }
 
-    checkLoginStatus()
-  }, [user, verified, router])
-
-  // Manual trigger for verifying wallets
-  const handleCheckWallet = async () => {
-    if (wallets?.length !== 2) {
+  const verifyUser = async () => {
+    const address = activeWalletAddress?.getAccount()?.address
+    if (!address) {
       toast({
-        title: "Connect both wallets",
-        description: "Please make sure both your personal wallet and smart wallet are connected.",
-        variant: "destructive"
+        title: "Wallet not connected",
+        description: "Please connect your wallet before verifying.",
+        variant: "destructive",
       })
       return
     }
 
+    setLoading(true)
     try {
-      setIsChecking(true)
+      const response = await axios.post("/api/verify", {
+        smart_wallet_address: address,
+      })
 
-      const data = {
-        wallet_address: wallets[0]?.getAccount()?.address,
-        smart_wallet_address: wallets[1]?.getAccount()?.address
+      const verifiedUser = response.data.user
+      console.log("the verified user", verifiedUser)
+      if (!verifiedUser) {
+        // Delete the jwt cookie using js-cookie
+        Cookies.remove("jwt")
+
+        toast({
+          title: "Access Denied",
+          description: "You are not a verified user. Redirecting to home.",
+          variant: "destructive",
+        })
+
+        setTimeout(() => {
+          router.push("/")
+        }, 2000)
+        return
       }
 
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URI}/get_user`, data)
-
-      const cookie = Cookies.get('jwt')
-
-      if (response.data.user && cookie) {
-        setUser(true)
-        setVerified(true) // Important!
-        toast({
-          title: "Verified",
-          description: "Account verified successfully.",
-          variant: "default"
-        })
-        router.push("/dashboard")
-      } else {
-        Cookies.remove('jwt')
-        setUser(false)
-        setVerified(false)
-        toast({
-          title: "Account not found",
-          description: "Please sign up to create an account.",
-          variant: "destructive"
-        })
-        router.push("/signup")
-      }
-    } catch (error) {
-      console.error("Error checking user:", error)
-      Cookies.remove('jwt')
-      setUser(false)
-      setVerified(false)
+      setUser(verifiedUser)
       toast({
-        title: "Error",
-        description: "Verification failed. No account found, or please try again later.",
-        variant: "destructive"
+        title: "Verification successful",
+        description: "Redirecting to your dashboard...",
+      })
+
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 1500)
+    } catch (error) {
+      console.error("User verification failed:", error)
+      toast({
+        title: "Verification failed",
+        description: "An error occurred. Please try again.",
+        variant: "destructive",
       })
     } finally {
-      setIsChecking(false)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="container mx-auto px-4 py-6">
-        <Link href="/" className="inline-flex items-center text-sm hover:text-primary transition-colors">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Link>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black flex flex-col">
+      <main className="relative z-10 flex-1 flex flex-col md:flex-row items-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
+          className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
         >
-          <Card>
-            <CardHeader>
-              <CardTitle>Sign In</CardTitle>
-              <CardDescription>Connect your wallet to access your account.</CardDescription>
-            </CardHeader>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="space-y-8"
+          >
+            <Logo />
 
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-center">
-                <ConnectButton
-                  client={client}
-                  accountAbstraction={{
-                    chain: sepolia,
-                    sponsorGas: true,
-                  }}
-                  auth={{
-                    isLoggedIn: async (address) => {
-                      console.log("checking if logged in!", { address })
-                      return await isLoggedIn()
-                    },
-                    doLogin: async (params) => {
-                      console.log("logging in!")
-                      await login(params)
-                      setLoggedIn(true)
-                    },
-                    getLoginPayload: async ({ address }) => generatePayload({ address, chainId: 11155111 }),
-                    doLogout: async () => {
-                      console.log("logging out!")
-                      await logout()
-                      setLoggedIn(false)
-                      router.push("/signin")
-                    },
-                  }}
-                />
-              </div>
+            <div className="space-y-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
+                Welcome to <span className="text-[#FF6600]">Echo Proff</span>
+              </h1>
 
-              {wallets?.length > 0 && (
-                <div className="text-center text-sm">
-                  {wallets.length === 1 && (
-                    <p className="text-amber-500 mb-2">Please complete the wallet connection process.</p>
-                  )}
-                  {wallets.length === 2 && (
-                    <p className="text-green-500 mb-2">Both wallets connected successfully!</p>
-                  )}
-
-                  <Button
-                    onClick={handleCheckWallet}
-                    disabled={isChecking || wallets.length !== 2}
-                    className="mt-2"
-                  >
-                    {isChecking ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Verify Account"
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-
-            <CardFooter className="flex justify-between">
-              <p className="text-xs text-muted-foreground text-center w-full">
-                Please {" "}
-                <Link href="/signup" className="underline hover:text-primary">
-                  Sign-up
-                </Link>{" "}
-                if you don't have an account
+              <p className="text-[#C4C4C4] text-base mb-2 max-w-md leading-relaxed">
+                Secure, private, decentralized meetings — powered by blockchain and encrypted storage.
               </p>
-            </CardFooter>
-          </Card>
+
+              <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
+                Own your conversations. Break free from centralized systems with Echo Proff.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <WalletButton />
+              <button
+                onClick={verifyUser}
+                disabled={loading}
+                className="bg-[#FF6600] hover:bg-[#FF5500] transition text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
+              >
+                {loading ? "Verifying..." : "Verify Wallet"}
+              </button>
+            </div>
+          </motion.div>
         </motion.div>
-      </div>
+
+        <motion.div
+          className="w-full md:w-1/2 p-8 md:p-16 flex items-center justify-center"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <BlockchainAnimation />
+        </motion.div>
+      </main>
     </div>
   )
 }
