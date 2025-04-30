@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
-
+import { Logo } from "@/components/logo/logo"
 export function LandingHeader() {
   return (
     <motion.header
@@ -14,12 +14,7 @@ export function LandingHeader() {
     >
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <motion.div
-            className="h-8 w-8 rounded-full bg-primary"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          />
-          <span className="text-xl font-bold">EchoProof</span>
+          <Logo />
         </Link>
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/#features" className="text-sm hover:text-primary transition-colors">

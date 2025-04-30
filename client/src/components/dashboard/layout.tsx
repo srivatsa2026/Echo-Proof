@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { sepolia } from "thirdweb/chains"
+import { Logo } from "@/components/logo/logo"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -90,8 +91,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <Sidebar variant="inset">
           <SidebarHeader className="flex items-center px-4 py-2">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-primary" />
-              <span className="text-xl font-bold">EchoProof</span>
+              <Logo />
             </Link>
           </SidebarHeader>
           <SidebarContent>

@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
 
 // Mock data for upcoming meetings
 const upcomingMeetings = [
@@ -118,12 +119,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-2 gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center">
               <MessageSquare className="h-5 w-5 mr-2 text-primary" />
@@ -165,8 +166,8 @@ export default function DashboardPage() {
               )}
             </Button>
           </CardContent>
-        </Card>
-
+        </Card> */}
+        <CreateChatroomCard />
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center">
@@ -210,8 +211,8 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-
-        <Card>
+        {/* the below commented card is for the meeting scheduling */}
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center">
               <CalendarIcon className="h-5 w-5 mr-2 text-primary" />
@@ -286,7 +287,7 @@ export default function DashboardPage() {
               </DialogContent>
             </Dialog>
           </CardContent>
-        </Card>
+        </Card> */}
       </motion.div>
 
       {sessionId && (

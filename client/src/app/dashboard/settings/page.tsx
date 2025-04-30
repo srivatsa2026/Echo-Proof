@@ -4,11 +4,11 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -18,21 +18,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Wallet, Moon, Sun, Bell, Mail, Trash2, CreditCard, User } from "lucide-react"
+import { Wallet, Trash2, CreditCard, User } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
-  const [isDarkMode, setIsDarkMode] = useState(true)
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [pushNotifications, setPushNotifications] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [name, setName] = useState("Alice Johnson")
+  const [email, setEmail] = useState("alice.johnson@example.com")
   const { toast } = useToast()
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
+  const updateProfile = () => {
     toast({
-      title: isDarkMode ? "Light Mode Activated" : "Dark Mode Activated",
-      description: isDarkMode ? "Switched to light mode." : "Switched to dark mode.",
+      title: "Profile Updated",
+      description: "Your profile information has been updated.",
     })
   }
 
@@ -69,8 +67,11 @@ export default function SettingsPage() {
               <CardDescription>Manage your account details and preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Wallet Details Section */}
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">Connected Wallet</h3>
+                <h3 className="text-lg font-medium">Wallet Details</h3>
+                
+                {/* Admin Wallet */}
                 <Card className="bg-secondary/50 border-primary/20">
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3 mb-2">
@@ -78,58 +79,65 @@ export default function SettingsPage() {
                         <Wallet className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">Wallet Connected</p>
-                        <p className="text-xs text-muted-foreground">MetaMask</p>
+                        <p className="font-medium">Admin Wallet</p>
+                        <p className="text-xs text-muted-foreground">Main Account Wallet</p>
                       </div>
                     </div>
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
-                      <p className="text-xs text-muted-foreground mb-1">Wallet Address</p>
+                      <p className="text-xs text-muted-foreground mb-1">Admin Wallet Address</p>
                       <p className="text-sm font-mono break-all">0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Smart Wallet */}
+                <Card className="bg-secondary/50 border-primary/20">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Wallet className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Smart Wallet</p>
+                        <p className="text-xs text-muted-foreground">Secondary Smart Contract Wallet</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
+                      <p className="text-xs text-muted-foreground mb-1">Smart Wallet Address</p>
+                      <p className="text-sm font-mono break-all">0x9s8r7q6p5o4n3m2l1k0j9i8h7g6f5e4d3c2b1a0</p>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
               <Separator />
-
+              
+              {/* User Details Section */}
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">Appearance</h3>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {isDarkMode ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
-                    <Label htmlFor="dark-mode">Dark Mode</Label>
-                  </div>
-                  <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={toggleDarkMode} />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Notifications</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-primary" />
-                      <Label htmlFor="email-notifications">Email Notifications</Label>
-                    </div>
-                    <Switch
-                      id="email-notifications"
-                      checked={emailNotifications}
-                      onCheckedChange={setEmailNotifications}
+                <h3 className="text-lg font-medium">User Details</h3>
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input 
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bell className="h-5 w-5 text-primary" />
-                      <Label htmlFor="push-notifications">Push Notifications</Label>
-                    </div>
-                    <Switch
-                      id="push-notifications"
-                      checked={pushNotifications}
-                      onCheckedChange={setPushNotifications}
+                  <div className="grid grid-cols-1 gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
                     />
                   </div>
+                  <Button onClick={updateProfile} className="w-full mt-2">
+                    Update Profile
+                  </Button>
                 </div>
               </div>
 
@@ -149,8 +157,7 @@ export default function SettingsPage() {
                       <DialogTitle>Delete Account</DialogTitle>
                       <DialogDescription>
                         Are you sure you want to delete your account? This action cannot be undone and all your data
-                        will be delete your account? This action cannot be undone and all your data will be permanently
-                        deleted.
+                        will be permanently deleted.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -186,8 +193,8 @@ export default function SettingsPage() {
                     <User className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
-                <h3 className="text-lg font-medium">Alice Johnson</h3>
-                <p className="text-sm text-muted-foreground mb-2">alice.johnson@example.com</p>
+                <h3 className="text-lg font-medium">{name}</h3>
+                <p className="text-sm text-muted-foreground mb-2">{email}</p>
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                   Free Plan
                 </Badge>
