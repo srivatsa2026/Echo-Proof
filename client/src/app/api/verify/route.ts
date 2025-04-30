@@ -6,9 +6,9 @@ import { supabase } from "@/lib/supabase-client";
 export async function POST(req: Request) {
     try {
         // Parse the request body as JSON
-        const { smart_wallet_address } = await req.json();
+        const { smart_wallet_address, wallet_address } = await req.json();
 
-        if (!smart_wallet_address) {
+        if (!smart_wallet_address || !wallet_address) {
             return NextResponse.json(
                 { error: "Wallet address is required" },
                 { status: 400 }
@@ -20,6 +20,7 @@ export async function POST(req: Request) {
             .from("users")
             .select("*")
             .eq("smart_wallet_address", smart_wallet_address)
+            .eq("wallet_address", wallet_address)
             .maybeSingle();
         console.log("the user is here ", data)
         if (error) {

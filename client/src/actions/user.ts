@@ -1,60 +1,40 @@
 'use server'
-import { supabase } from "@/lib/supabase-client";
 
-export const createOrVerifyUser = async (smart_wallet_address: any) => {
+import { supabase } from "@/lib/supabase-client";
+import { NextResponse } from "next/server";
+
+export async function verifyUser(smart_wallet_address: any) {
     try {
-        // Validate input
+        // Parse the request body as JSON
+
         if (!smart_wallet_address) {
-            return new Response(JSON.stringify({ message: "Missing smart_wallet_address" }), {
-                status: 400,
-            });
+            return NextResponse.json(
+                { error: "Wallet address is required" },
+                { status: 400 }
+            );
         }
 
-        // Check if user already exists
-        const { data: existingUser, error: fetchError } = await supabase
+        // Query the database to check if the user exists
+        const { data, error } = await supabase
             .from("users")
             .select("*")
             .eq("smart_wallet_address", smart_wallet_address)
             .maybeSingle();
-
-        if (fetchError) {
-            return new Response(
-                JSON.stringify({ message: "Error checking user", error: fetchError.message }),
-                { status: 500 }
-            );
+        console.log("the user is here ", data)
+        if (error) {
+            console.error("Error fetching user:", error.message);
+            return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        if (existingUser) {
-            console.log("existing user", existingUser)
-            return new Response(JSON.stringify({ message: "User already exists", user: existingUser }), {
-                status: 200,
-            });
+        if (!data) {
+            return NextResponse.json({ message: "User not found" }, { status: 404 });
         }
+        console.log("done with verifiacion")
 
-        // Create new user with only smart_wallet_address
-        const { data: newUser, error: insertError } = await supabase
-            .from("users")
-            .insert([
-                {
-                    smart_wallet_address,
-                },
-            ])
-            .single();
-        console.log("createdUser", newUser)
-        if (insertError) {
-            return new Response(
-                JSON.stringify({ message: "Error creating user", error: insertError.message }),
-                { status: 500 }
-            );
-        }
-
-        return new Response(JSON.stringify({ message: "User created successfully", user: newUser }), {
-            status: 201,
-        });
-    } catch (err: any) {
-        return new Response(
-            JSON.stringify({ message: "Unexpected error", error: err.message }),
-            { status: 500 }
-        );
+        // Return the user data if found
+        return NextResponse.json({ user: data }, { status: 200 });
+    } catch (error) {
+        console.error("Error in POST request:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
-};
+}
