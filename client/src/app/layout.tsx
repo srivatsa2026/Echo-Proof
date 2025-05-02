@@ -22,14 +22,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-          <ReduxProvider>
-        {/* <AuthGuard> */}
-            <ThirdwebProvider>
+        <ReduxProvider>
+          <ThirdwebProvider>
+            <AuthGuard>
               {children}
               <Toaster />
-            </ThirdwebProvider>
-        {/* </AuthGuard> */}
-          </ReduxProvider>
+            </AuthGuard>
+          </ThirdwebProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

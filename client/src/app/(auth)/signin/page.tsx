@@ -26,7 +26,7 @@
 //   const { toast } = useToast()
 
 
-  
+
 
 //   return (
 //     <div className="min-h-screen bg-black flex flex-col">
@@ -108,12 +108,14 @@ import { Logo } from "@/components/logo/logo"
 import { useActiveWallet } from "thirdweb/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { ArrowBigRight } from "lucide-react"
 import {
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs"
+import Link from "next/link"
 
 export default function SignInPage() {
   const [loading, setLoading] = useState(false)
@@ -149,17 +151,17 @@ export default function SignInPage() {
                   <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
                     Welcome to <span className="text-[#FF6600]">Echo Proff</span>
                   </h1>
-                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
+                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed mb-2">
                     Secure, private, decentralized meetings — powered by blockchain and encrypted storage.
                   </p>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 mt-2">
                   <WalletButton type="signin" />
                 </div>
               </TabsContent>
               {/* sign up tab ---------------------> */}
               <TabsContent value="signup">
-                <div className="space-y-4">
+                <div className="space-y-4 mb-3">
                   <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
                     Join <span className="text-[#FF6600]">Echo Proff</span>
                   </h1>
@@ -167,11 +169,21 @@ export default function SignInPage() {
                     Create your account by registering your wallet address.
                   </p>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 mt-4">
                   <WalletButton type="signup" />
                 </div>
               </TabsContent>
             </Tabs>
+            {
+              activeWalletAddress && <Link href="/dashboard">
+                <div className="flex flex-row mt-4">
+                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
+                    Go to dashboard
+                  </p>
+                  <ArrowBigRight />
+                </div>
+              </Link>
+            }
           </motion.div>
         </motion.div>
 

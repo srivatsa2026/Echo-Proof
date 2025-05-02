@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,7 +23,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { stateLogin } from "@/store/reducers/userSlice"
 import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
+import { useActiveWallet } from "thirdweb/react"
+import { useDispatch } from "react-redux"
 
 // Mock data for upcoming meetings
 const upcomingMeetings = [
@@ -57,8 +60,18 @@ export default function DashboardPage() {
   const [isScheduling, setIsScheduling] = useState(false)
   const [sessionId, setSessionId] = useState("")
   const [meetingTitle, setMeetingTitle] = useState("")
+  const dispatch = useDispatch()
+  const activeWallet = useActiveWallet()
   const { toast } = useToast()
 
+
+
+  useEffect(() => {
+    dispatch(stateLogin({
+      wallet_address: activeWallet?.getAccount()?.address,
+      smart_wallet_address: activeWallet?.getAdminAccount?.()?.address
+    }))
+  }, [])
   const createChatroom = () => {
     setIsCreatingChatroom(true)
 

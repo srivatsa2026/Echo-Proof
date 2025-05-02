@@ -1,4 +1,3 @@
-// features/user/userSlice.ts
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 
@@ -22,13 +21,13 @@ const initialState: {
     error: null,
 };
 
+// 🔐 Register a new user
 export const registerUser = createAsyncThunk(
     "user/register",
     async (
         { smartWalletAddress, walletAddress, toast, router }: any,
         { rejectWithValue }
     ) => {
-        console.log("hey here we are inside the redux boooooooyeahhhhh")
         if (!smartWalletAddress || !walletAddress) {
             toast({
                 title: "Wallet not connected",
@@ -70,17 +69,83 @@ export const registerUser = createAsyncThunk(
     }
 );
 
+// 🧾 Update user profile (name & email)
 export const updateUserProfile = createAsyncThunk(
     "user/updateProfile",
-    async ({ name, email, toast, }: any) => { }
-)
+    async (
+        { name, email, toast, smart_wallet_address, wallet_address }: any,
+        { rejectWithValue }
+    ) => {
+        try {
+            const response = await axios.post("/api/update-profile", {
+                name,
+                email,
+                wallet_address,
+                smart_wallet_address,
+            });
 
+            toast({
+                title: "Profile updated",
+                description: "Your profile has been successfully updated.",
+            });
+
+            return response.data;
+        } catch (error: any) {
+            toast({
+                title: "Update failed",
+                description: error?.response?.data?.message || "Please try again.",
+                variant: "destructive",
+            });
+            return rejectWithValue(error?.response?.data || "Unknown error");
+        }
+    }
+);
+
+// 📥 Get user details from Supabase
+export const getUserDetails = createAsyncThunk(
+    "user/getUserDetails",
+    async (
+        { smart_wallet_address, wallet_address }: any,
+        { rejectWithValue }
+    ) => {
+        try {
+            const response = await axios.post("/api/get-user", {
+                wallet_address,
+                smart_wallet_address,
+            });
+            console.log("the reponse of the profile is ", response.data)
+
+            return response.data;
+        } catch (error: any) {
+            return rejectWithValue(error?.response?.data || "Unknown error");
+        }
+    }
+);
+
+// 🧠 User slice
 const userSlice = createSlice({
     name: "user",
     initialState,
-    reducers: {},
+    reducers: {
+        stateLogin: (state, action) => {
+            state.isAuthenticated = true;
+            state.smart_wallet_address = action.payload.smart_wallet_address;
+            state.wallet_address = action.payload.wallet_address;
+            state.name = action.payload.name || state.name;
+            state.email = action.payload.email || state.email;
+        },
+        stateLogout: (state) => {
+            state.isAuthenticated = false;
+            state.wallet_address = "";
+            state.smart_wallet_address = "";
+            state.name = "Echo-Client";
+            state.email = "echoProof@echo.com";
+            state.userPlan = "free";
+        },
+    },
     extraReducers: (builder) => {
         builder
+            // Register User
             .addCase(registerUser.pending, (state) => {
                 state.loading = true;
                 state.error = null;
@@ -90,12 +155,50 @@ const userSlice = createSlice({
                 state.smart_wallet_address = action.payload.smart_wallet_address;
                 state.wallet_address = action.payload.wallet_address;
                 state.isAuthenticated = true;
+                state.name = action.payload.name || state.name;
+                state.email = action.payload.email || state.email;
             })
             .addCase(registerUser.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload as string | null;
+            })
+
+            // Update Profile
+            .addCase(updateUserProfile.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(updateUserProfile.fulfilled, (state, action) => {
+                state.loading = false;
+                state.name = action.payload.name;
+                state.email = action.payload.email;
+            })
+            .addCase(updateUserProfile.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload as string | null;
+            })
+
+            // Get User Details
+            .addCase(getUserDetails.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(getUserDetails.fulfilled, (state, action) => {
+                state.loading = false;
+                console.log("the action payload is ", action.payload.user)
+                state.name = action.payload.user.name || state.name;
+                state.email = action.payload.user.email || state.email;
+                state.smart_wallet_address = action.payload.user.smart_wallet_address;
+                state.wallet_address = action.payload.user.wallet_address;
+                state.userPlan = action.payload.userPlan || state.userPlan;
+                state.isAuthenticated = true;
+            })
+            .addCase(getUserDetails.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload as string | null;
             });
     },
 });
 
+export const { stateLogin, stateLogout } = userSlice.actions;
 export default userSlice.reducer;

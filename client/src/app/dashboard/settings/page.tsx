@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,24 +20,57 @@ import {
 } from "@/components/ui/dialog"
 import { Wallet, Trash2, CreditCard, User } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { getUserDetails, updateUserProfile } from "@/store/reducers/userSlice"
+import { useDispatch, useSelector } from "react-redux"
+import { useActiveWallet } from "thirdweb/react"
 
 export default function SettingsPage() {
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [name, setName] = useState("Alice Johnson")
-  const [email, setEmail] = useState("alice.johnson@example.com")
+  const dispatch = useDispatch()
   const { toast } = useToast()
+  const activeWallet = useActiveWallet()
+  const wallet_address = activeWallet?.getAdminAccount?.()?.address
+  const smart_wallet_address = activeWallet?.getAccount()?.address
+  const user_name = useSelector((state: any) => state.user.name)
+  const user_email = useSelector((state: any) => state.user.email)
+  console.log("the name is ", user_name)
+  const [name, setName] = useState(user_name || "")
+  const [email, setEmail] = useState(user_email || "")
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  const updateProfile = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been updated.",
-    })
+
+
+  useEffect(() => {
+    dispatch<any>(getUserDetails({
+      wallet_address, smart_wallet_address
+    }))
+  }, [])
+
+  const updateProfile = async () => {
+    try {
+      dispatch<any>(updateUserProfile({
+        name,
+        email,
+        toast,
+        wallet_address,
+        smart_wallet_address,
+      }))
+
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile details were successfully updated.",
+      })
+    } catch (err) {
+      toast({
+        title: "Update Failed",
+        description: "There was a problem updating your profile.",
+        variant: "destructive",
+      })
+    }
   }
 
   const deleteAccount = () => {
     setIsDeleting(true)
-
-    // Simulate account deletion
     setTimeout(() => {
       setIsDeleting(false)
       toast({
@@ -67,10 +100,11 @@ export default function SettingsPage() {
               <CardDescription>Manage your account details and preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Wallet Details Section */}
+
+              {/* Wallet Details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Wallet Details</h3>
-                
+
                 {/* Admin Wallet */}
                 <Card className="bg-secondary/50 border-primary/20">
                   <CardContent className="pt-6">
@@ -85,11 +119,11 @@ export default function SettingsPage() {
                     </div>
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Admin Wallet Address</p>
-                      <p className="text-sm font-mono break-all">0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t</p>
+                      <p className="text-sm font-mono break-all">{wallet_address}</p>
                     </div>
                   </CardContent>
                 </Card>
-                
+
                 {/* Smart Wallet */}
                 <Card className="bg-secondary/50 border-primary/20">
                   <CardContent className="pt-6">
@@ -104,30 +138,30 @@ export default function SettingsPage() {
                     </div>
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Smart Wallet Address</p>
-                      <p className="text-sm font-mono break-all">0x9s8r7q6p5o4n3m2l1k0j9i8h7g6f5e4d3c2b1a0</p>
+                      <p className="text-sm font-mono break-all">{smart_wallet_address}</p>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
               <Separator />
-              
-              {/* User Details Section */}
+
+              {/* User Details Form */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">User Details</h3>
                 <div className="grid gap-4">
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="name">Name</Label>
-                    <Input 
+                    <Input
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Enter your name"
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input 
+                    <Input
                       id="email"
                       type="email"
                       value={email}
@@ -143,6 +177,7 @@ export default function SettingsPage() {
 
               <Separator />
 
+              {/* Danger Zone */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Danger Zone</h3>
                 <Dialog>
@@ -156,14 +191,11 @@ export default function SettingsPage() {
                     <DialogHeader>
                       <DialogTitle>Delete Account</DialogTitle>
                       <DialogDescription>
-                        Are you sure you want to delete your account? This action cannot be undone and all your data
-                        will be permanently deleted.
+                        Are you sure? This action is permanent.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => {}}>
-                        Cancel
-                      </Button>
+                      <Button variant="outline">Cancel</Button>
                       <Button variant="destructive" onClick={deleteAccount} disabled={isDeleting}>
                         {isDeleting ? "Deleting..." : "Delete Account"}
                       </Button>
@@ -171,10 +203,12 @@ export default function SettingsPage() {
                   </DialogContent>
                 </Dialog>
               </div>
+
             </CardContent>
           </Card>
         </motion.div>
 
+        {/* Profile Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -193,8 +227,8 @@ export default function SettingsPage() {
                     <User className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
-                <h3 className="text-lg font-medium">{name}</h3>
-                <p className="text-sm text-muted-foreground mb-2">{email}</p>
+                <h3 className="text-lg font-medium">{user_name}</h3>
+                <p className="text-sm text-muted-foreground mb-2">{user_email}</p>
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                   Free Plan
                 </Badge>

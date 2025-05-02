@@ -1,14 +1,14 @@
 import { supabase } from "@/lib/supabase-client";
 
 export async function POST(req: Request) {
-    const { name, email, wallet_address, smartWalletAddress } = await req.json();
-
+    const { name, email, wallet_address, smart_wallet_address } = await req.json();
+    console.log(name, email, wallet_address, smart_wallet_address)
     const { data: user, error: selectError } = await supabase
         .from("users")
         .select("*")
-        .eq("smart_wallet_address", smartWalletAddress)
+        .eq("smart_wallet_address", smart_wallet_address)
         .eq("wallet_address", wallet_address)
-        .maybeSingle(); 
+        .single();
 
     if (selectError || !user) {
         return new Response(
@@ -23,9 +23,9 @@ export async function POST(req: Request) {
             name: name,
             email: email
         })
-        .eq("smart_wallet_address", smartWalletAddress)
+        .eq("smart_wallet_address", smart_wallet_address)
         .eq("wallet_address", wallet_address)
-        .select(); 
+        .select();
 
     if (updateError) {
         return new Response(

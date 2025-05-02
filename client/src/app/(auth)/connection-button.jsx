@@ -128,7 +128,7 @@ import { createWallet } from "thirdweb/wallets";
 import { sepolia } from "thirdweb/chains";
 import { useToast } from "@/hooks/use-toast";
 import { useDispatch } from "react-redux";
-import { registerUser } from "@/store/reducers/userSlice"; // path as per your structure
+import { registerUser } from "@/store/reducers/userSlice"; 
 
 export default function ConnectionButton({ type = "signin" }) {
     const dispatch = useDispatch();
