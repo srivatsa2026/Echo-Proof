@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 
 const initialState: {
+    id: string,
     name: string;
     isAuthenticated: boolean;
     email: string;
@@ -11,6 +12,7 @@ const initialState: {
     loading: boolean;
     error: string | null;
 } = {
+    id: "",
     name: "Echo-Client",
     isAuthenticated: false,
     email: "echoProof@echo.com",
@@ -187,6 +189,7 @@ const userSlice = createSlice({
                 state.loading = false;
                 console.log("the action payload is ", action.payload.user)
                 state.name = action.payload.user.name || state.name;
+                state.id = action.payload.user.id || action.payload.user.wallet_address
                 state.email = action.payload.user.email || state.email;
                 state.smart_wallet_address = action.payload.user.smart_wallet_address;
                 state.wallet_address = action.payload.user.wallet_address;

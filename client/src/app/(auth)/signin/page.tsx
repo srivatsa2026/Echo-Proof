@@ -151,7 +151,7 @@ export default function SignInPage() {
                   <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
                     Welcome to <span className="text-[#FF6600]">Echo Proff</span>
                   </h1>
-                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed mb-2">
+                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed ">
                     Secure, private, decentralized meetings — powered by blockchain and encrypted storage.
                   </p>
                 </div>

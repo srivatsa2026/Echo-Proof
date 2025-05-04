@@ -1,9 +1,7 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,104 +18,49 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Send, User, Users, X, Info, LogOut, Copy, Smile, Paperclip, MoreVertical, Sparkles } from "lucide-react"
+import {
+  Send, User, Users, X, Info, LogOut, Copy,
+  Smile, Paperclip, MoreVertical, Sparkles,
+  AlertTriangle, Loader2, CheckCircle
+} from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { io, Socket } from "socket.io-client"
 
-// Mock data for messages
-const mockMessages = [
-  {
-    id: "msg-1",
-    sender: {
-      id: "user-1",
-      name: "Alice Johnson",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "Hey everyone! Welcome to the chatroom.",
-    timestamp: new Date(Date.now() - 3600000 * 5),
-  },
-  {
-    id: "msg-2",
-    sender: {
-      id: "user-2",
-      name: "Bob Smith",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "Thanks for setting this up. I think we should discuss the new project requirements.",
-    timestamp: new Date(Date.now() - 3600000 * 4),
-  },
-  {
-    id: "msg-3",
-    sender: {
-      id: "user-3",
-      name: "Charlie Davis",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "I agree. The client wants us to implement the new features by next month.",
-    timestamp: new Date(Date.now() - 3600000 * 3),
-  },
-  {
-    id: "msg-4",
-    sender: {
-      id: "user-1",
-      name: "Alice Johnson",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "That's a tight deadline. Do we have all the resources we need?",
-    timestamp: new Date(Date.now() - 3600000 * 2),
-  },
-  {
-    id: "msg-5",
-    sender: {
-      id: "user-2",
-      name: "Bob Smith",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "I think we'll need to bring in another developer to help with the backend work.",
-    timestamp: new Date(Date.now() - 3600000 * 1),
-  },
-]
+// Define types for the app
+interface Participant {
+  id: string;
+  name: string;
+  status: string;
+  isCurrentUser?: boolean;
+}
 
-// Mock data for participants
-const mockParticipants = [
-  {
-    id: "user-1",
-    name: "Alice Johnson",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "online",
-    isCurrentUser: true,
-  },
-  {
-    id: "user-2",
-    name: "Bob Smith",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "online",
-    isCurrentUser: false,
-  },
-  {
-    id: "user-3",
-    name: "Charlie Davis",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "online",
-    isCurrentUser: false,
-  },
-  {
-    id: "user-4",
-    name: "Diana Miller",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "away",
-    isCurrentUser: false,
-  },
-  {
-    id: "user-5",
-    name: "Ethan Wilson",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "offline",
-    isCurrentUser: false,
-  },
-]
+interface MessageSender {
+  id: string;
+  name: string;
+}
 
-// Mock AI summary
-const mockSummary = {
+interface Message {
+  id: string;
+  sender: MessageSender;
+  content: string;
+  timestamp: Date;
+  pending?: boolean;
+}
+
+interface SummaryData {
+  keyPoints: string[];
+  actionItems: string[];
+  nextSteps: string;
+}
+
+// Initial state for messages
+const initialMessages: Message[] = []
+
+// Initial state for participants (just the current user)
+const initialParticipants: Participant[] = []
+
+// Mock AI summary (will be replaced with real API in production)
+const mockSummary: SummaryData = {
   keyPoints: [
     "Team discussed project requirements and timeline",
     "Client needs new features implemented by next month",
@@ -134,18 +77,289 @@ const mockSummary = {
 }
 
 export default function ChatroomPage() {
+  const router = useRouter()
   const params = useParams()
   const chatroomId = params.id as string
+
+  // State management
   const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState(mockMessages)
-  const [participants, setParticipants] = useState(mockParticipants)
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [participants, setParticipants] = useState<Participant[]>(initialParticipants)
   const [showParticipants, setShowParticipants] = useState(false)
   const [isLeavingRoom, setIsLeavingRoom] = useState(false)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [socket, setSocket] = useState<Socket | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('chatUsername') || `User-${Math.floor(Math.random() * 10000)}`
+    }
+    return `User-${Math.floor(Math.random() * 10000)}`
+  })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
+  const [showUsernameDialog, setShowUsernameDialog] = useState(false)
+  const [tempUsername, setTempUsername] = useState("")
+  const [showError, setShowError] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
+  // Save username to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatUsername', username)
+    }
+  }, [username])
+
+  // Initialize socket connection
+  useEffect(() => {
+    const SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050"
+    setConnectionStatus("connecting")
+
+    // Connect to the Socket.IO server
+    const newSocket = io(SERVER_URL, {
+      transports: ["websocket"],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    })
+
+    // Set up event listeners
+    newSocket.on("connect", () => {
+      console.log("Connected to server with ID:", newSocket.id)
+      setConnectionStatus("connected")
+      setIsLoading(false)
+
+      // Join the chatroom
+      newSocket.emit("join", {
+        room: chatroomId,
+        username: username
+      })
+
+      toast({
+        title: "Connected",
+        description: "You are now connected to the chat server.",
+      })
+    })
+
+    newSocket.on("connect_error", (err) => {
+      console.error("Connection error:", err)
+      setConnectionStatus("disconnected")
+      setIsLoading(false)
+      setError("Failed to connect to the chat server. Please try again later.")
+      setShowError(true)
+
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to the chat server. Please try again.",
+        variant: "destructive",
+      })
+    })
+
+    newSocket.on("disconnect", (reason) => {
+      console.log("Disconnected from server, reason:", reason)
+      setConnectionStatus("disconnected")
+
+      toast({
+        title: "Disconnected",
+        description: reason === "io server disconnect"
+          ? "You have been disconnected from the server."
+          : "Connection lost. Attempting to reconnect...",
+        variant: "destructive",
+      })
+    })
+
+    newSocket.on("reconnect", (attemptNumber: number) => {
+      console.log("Reconnected after", attemptNumber, "attempts")
+      setConnectionStatus("connected")
+
+      toast({
+        title: "Reconnected",
+        description: "You have been reconnected to the chat server.",
+      })
+
+      // Rejoin the room
+      newSocket.emit("join", {
+        room: chatroomId,
+        username: username
+      })
+    })
+
+    newSocket.on("reconnect_failed", () => {
+      console.error("Failed to reconnect")
+      setError("Failed to reconnect to the server. Please refresh the page.")
+      setShowError(true)
+
+      toast({
+        title: "Reconnection Failed",
+        description: "Unable to reconnect to the server. Please refresh the page.",
+        variant: "destructive",
+      })
+    })
+
+    // Socket event handlers
+    newSocket.on("connection_status", (data: { userId: string }) => {
+      console.log("Connection status:", data)
+      if (data.userId) {
+        setUserId(data.userId)
+      }
+    })
+
+    newSocket.on("error", (data: { message: string }) => {
+      console.error("Server error:", data.message)
+      toast({
+        title: "Error",
+        description: data.message,
+        variant: "destructive",
+      })
+    })
+
+    newSocket.on("join_success", (data: { participants: Participant[], history?: any[] }) => {
+      console.log("Join success:", data)
+
+      // Set participants list (mark current user)
+      const updatedParticipants = data.participants.map((participant: Participant) => ({
+        ...participant,
+        isCurrentUser: participant.id === newSocket.id
+      }))
+
+      // Add current user if not in the list
+      const currentUserExists = updatedParticipants.some(p => p.id === newSocket.id)
+      if (!currentUserExists) {
+        updatedParticipants.push({
+          id: newSocket.id || "unknown-id",
+          name: username,
+          status: "online",
+          isCurrentUser: true
+        })
+      }
+
+      setParticipants(updatedParticipants)
+
+      // Load message history if available
+      if (data.history && Array.isArray(data.history)) {
+        setMessages(data.history.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })))
+      }
+
+      toast({
+        title: "Joined Room",
+        description: `You have joined the chatroom: ${chatroomId}`,
+      })
+    })
+
+    newSocket.on("user_joined", (data: { username: string, participants: Participant[] }) => {
+      console.log("User joined:", data)
+
+      // Update participants list
+      if (data.participants) {
+        const updatedParticipants = data.participants.map(participant => ({
+          ...participant,
+          isCurrentUser: participant.id === newSocket.id
+        }))
+
+        setParticipants(updatedParticipants)
+      }
+
+      toast({
+        title: "User Joined",
+        description: `${data.username} has joined the room.`,
+      })
+    })
+
+    newSocket.on("user_left", (data: { username: string, participants: Participant[] }) => {
+      console.log("User left:", data)
+
+      // Update participants list
+      if (data.participants) {
+        const updatedParticipants = data.participants.map(participant => ({
+          ...participant,
+          isCurrentUser: participant.id === newSocket.id
+        }))
+
+        setParticipants(updatedParticipants)
+      }
+
+      toast({
+        title: "User Left",
+        description: `${data.username} has left the room.`,
+      })
+    })
+
+    newSocket.on("leave_success", (data: any) => {
+      console.log("Leave success:", data)
+      toast({
+        title: "Left Room",
+        description: `You have left the chatroom.`,
+      })
+    })
+
+    newSocket.on("message_received", (message: any) => {
+      console.log("Message received:", message)
+
+      // Add received message to messages
+      setMessages(prev => [
+        ...prev,
+        {
+          ...message,
+          timestamp: new Date(message.timestamp)
+        }
+      ])
+    })
+
+    newSocket.on("message_sent", (message: any) => {
+      console.log("Message sent confirmation:", message)
+      // The message is already added to the UI, nothing to do here
+    })
+
+    newSocket.on("participants_list", (data: { participants: Participant[] }) => {
+      console.log("Participants list:", data)
+
+      // Update participants
+      if (data.participants) {
+        const updatedParticipants = data.participants.map(participant => ({
+          ...participant,
+          isCurrentUser: participant.id === newSocket.id
+        }))
+
+        setParticipants(updatedParticipants)
+      }
+    })
+
+    newSocket.on("status_updated", (data: { participants: Participant[] }) => {
+      console.log("Status updated:", data)
+
+      // Update participants list with new status
+      if (data.participants) {
+        const updatedParticipants = data.participants.map(participant => ({
+          ...participant,
+          isCurrentUser: participant.id === newSocket.id
+        }))
+
+        setParticipants(updatedParticipants)
+      }
+    })
+
+    // Save socket instance and clean up on unmount
+    setSocket(newSocket)
+
+    return () => {
+      if (newSocket) {
+        // Leave room before disconnecting
+        newSocket.emit("leave", { room: chatroomId })
+        newSocket.disconnect()
+      }
+    }
+  }, [chatroomId, toast, username])
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     scrollToBottom()
   }, [messages])
@@ -155,20 +369,34 @@ export default function ChatroomPage() {
   }
 
   const sendMessage = () => {
-    if (!message.trim()) return
+    if (!message.trim() || !socket || connectionStatus !== "connected") return
 
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      sender: participants.find((p) => p.isCurrentUser)!,
+    // Create local message object (will appear immediately)
+    const newMessage: Message = {
+      id: `msg-${Date.now()}-local`,
+      sender: {
+        id: socket.id || "unknown-id",
+        name: username
+      },
       content: message,
       timestamp: new Date(),
+      pending: true  // Mark as pending until confirmed
     }
 
-    setMessages([...messages, newMessage])
+    // Add to local messages
+    setMessages(prev => [...prev, newMessage])
+
+    // Send to server
+    socket.emit("message", {
+      room: chatroomId,
+      message: message,
+      username: username
+    })
+
     setMessage("")
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
@@ -178,7 +406,7 @@ export default function ChatroomPage() {
   const copyRoomId = () => {
     navigator.clipboard.writeText(chatroomId)
     toast({
-      title: "Copied!",
+      title: "Copied",
       description: "Chatroom ID copied to clipboard.",
     })
   }
@@ -186,37 +414,148 @@ export default function ChatroomPage() {
   const leaveRoom = () => {
     setIsLeavingRoom(true)
 
-    // Simulate leaving the room
+    if (socket && connectionStatus === "connected") {
+      socket.emit("leave", { room: chatroomId })
+    }
+
+    toast({
+      title: "Leaving Room",
+      description: "You are leaving the chatroom...",
+    })
+
+    // Redirect after a short delay
     setTimeout(() => {
-      window.location.href = "/dashboard"
+      setLeaveDialogOpen(false)
+      router.push("/dashboard")
     }, 1000)
+  }
+
+  const updateUsername = () => {
+    if (!tempUsername.trim()) return
+
+    const newUsername = tempUsername.trim()
+    setUsername(newUsername)
+    setShowUsernameDialog(false)
+
+    toast({
+      title: "Username Updated",
+      description: `Your username is now: ${newUsername}`,
+    })
+
+    // If connected, rejoin to update username
+    if (socket && connectionStatus === "connected") {
+      socket.emit("leave", { room: chatroomId })
+      socket.emit("join", {
+        room: chatroomId,
+        username: newUsername
+      })
+    }
   }
 
   const generateSummary = () => {
     setIsGeneratingSummary(true)
 
-    // Simulate AI summary generation
+    // In a real app, you'd call an AI API here
+    // For now, simulate with a delay
     setTimeout(() => {
       setIsGeneratingSummary(false)
       setShowSummary(true)
 
       toast({
         title: "Summary Generated",
-        description: "AI has generated a summary of the chat conversation.",
+        description: "AI has generated a summary of the conversation.",
       })
     }, 2000)
   }
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
+    if (!date) return ""
+    if (typeof date === 'string') {
+      date = new Date(date)
+    }
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <h2 className="text-lg font-medium">Connecting to chatroom...</h2>
+        <p className="text-sm text-muted-foreground">Please wait while we establish a connection.</p>
+      </div>
+    )
+  }
+
+  // Error state
+  if (showError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background">
+        <AlertTriangle className="h-8 w-8 text-destructive mb-4" />
+        <h2 className="text-lg font-medium">Connection Error</h2>
+        <p className="text-sm text-muted-foreground mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>
+          Retry Connection
+        </Button>
+        <Button variant="outline" className="mt-2" onClick={() => router.push("/dashboard")}>
+          Return to Dashboard
+        </Button>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Username Dialog */}
+      <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Username</DialogTitle>
+            <DialogDescription>
+              Enter a new username that will be visible to others in the chatroom.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={tempUsername}
+            onChange={(e) => setTempUsername(e.target.value)}
+            placeholder="Enter new username"
+            className="mt-4"
+          />
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowUsernameDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateUsername} disabled={!tempUsername.trim()}>
+              Update Username
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Confirmation Dialog */}
+      <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Leave Chatroom</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to leave this chatroom? You can rejoin later with the chatroom ID.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={leaveRoom} disabled={isLeavingRoom}>
+              {isLeavingRoom ? "Leaving..." : "Leave Chatroom"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <header className="border-b border-border/40 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" asChild className="md:hidden">
+            <Button variant="ghost" size="icon" asChild>
               <a href="/dashboard">
                 <X className="h-5 w-5" />
               </a>
@@ -258,7 +597,29 @@ export default function ChatroomPage() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={generateSummary} disabled={isGeneratingSummary}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowUsernameDialog(true)}
+                  >
+                    <User className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Change Username</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={generateSummary}
+                    disabled={isGeneratingSummary || messages.length < 5}
+                  >
                     <Sparkles className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
@@ -271,270 +632,263 @@ export default function ChatroomPage() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Info className="h-5 w-5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setLeaveDialogOpen(true)}
+                  >
+                    <LogOut className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Chatroom Info</p>
+                  <p>Leave Room</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-destructive">
-                  <LogOut className="h-5 w-5" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Leave Chatroom</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to leave this chatroom? You can rejoin later with the chatroom ID.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => {}}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" onClick={leaveRoom} disabled={isLeavingRoom}>
-                    {isLeavingRoom ? "Leaving..." : "Leave Chatroom"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 flex flex-col">
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Messages Area */}
           <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className={`flex ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "justify-end" : "justify-start"}`}
-                >
+            <div className="space-y-4 mb-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center">
+                  <Info className="h-10 w-10 text-muted-foreground mb-2" />
+                  <h3 className="font-medium">Welcome to the chatroom!</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Start chatting or share this room ID with others to invite them.
+                  </p>
+                </div>
+              ) : (
+                messages.map((msg) => (
                   <div
-                    className={`flex gap-3 max-w-[80%] ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "flex-row-reverse" : ""}`}
+                    key={msg.id}
+                    className={`flex gap-3 ${msg.sender.id === socket?.id ? "justify-end" : "justify-start"
+                      }`}
                   >
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.sender.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div>
-                      <div
-                        className={`flex items-center gap-2 mb-1 ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "justify-end" : ""}`}
-                      >
-                        <span className="text-xs text-muted-foreground">{formatTime(msg.timestamp)}</span>
-                        <span className="text-sm font-medium">{msg.sender.name}</span>
-                      </div>
-
-                      <div
-                        className={`rounded-lg p-3 ${
-                          msg.sender.id === participants.find((p) => p.isCurrentUser)?.id
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary"
+                    {msg.sender.id !== socket?.id && (
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {msg.sender.name ? msg.sender.name.charAt(0).toUpperCase() : "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <div
+                      className={`flex flex-col max-w-[70%] ${msg.sender.id === socket?.id ? "items-end" : "items-start"
                         }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-muted-foreground">
+                          {msg.sender.id === socket?.id ? "You" : msg.sender.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(msg.timestamp)}
+                        </span>
+                        {msg.pending && (
+                          <span className="text-xs text-muted-foreground italic">
+                            sending...
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={`rounded-lg px-4 py-2 break-words ${msg.sender.id === socket?.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                          }`}
                       >
-                        <p className="text-sm">{msg.content}</p>
+                        {msg.content}
                       </div>
                     </div>
+                    {msg.sender.id === socket?.id && (
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {msg.sender.name ? msg.sender.name.charAt(0).toUpperCase() : "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
                   </div>
-                </motion.div>
-              ))}
+                ))
+              )}
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
 
-          {isGeneratingSummary && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
-              className="mx-4 mb-4"
-            >
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                      <h3 className="font-semibold">Generating AI Summary...</h3>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-center py-4">
-                    <div className="flex gap-2">
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-150" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-300" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {showSummary && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
-              className="mx-4 mb-4"
-            >
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <h3 className="font-semibold">AI Chat Summary</h3>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSummary(false)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <p className="font-semibold mb-2">Key Points:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        {mockSummary.keyPoints.map((point, index) => (
-                          <motion.li
-                            key={index}
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                          >
-                            {point}
-                          </motion.li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <p className="font-semibold mb-2">Action Items:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        {mockSummary.actionItems.map((item, index) => (
-                          <motion.li
-                            key={index}
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.4 + index * 0.1 }}
-                          >
-                            {item}
-                          </motion.li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
-                      <p className="font-semibold mb-2">Next Steps:</p>
-                      <p>{mockSummary.nextSteps}</p>
-                    </motion.div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          <div className="border-t p-4">
-            <div className="flex gap-2">
-              <Button variant="ghost" size="icon" className="shrink-0">
+          {/* Chat Input Area */}
+          <div className="p-4 border-t border-border">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0"
+                disabled={connectionStatus !== "connected"}
+              >
                 <Paperclip className="h-5 w-5" />
               </Button>
 
-              <div className="relative flex-1">
-                <Input
-                  placeholder="Type a message..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="pr-10"
-                />
-                <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8">
-                  <Smile className="h-5 w-5" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0"
+                disabled={connectionStatus !== "connected"}
+              >
+                <Smile className="h-5 w-5" />
+              </Button>
 
-              <Button className="shrink-0" size="icon" onClick={sendMessage} disabled={!message.trim()}>
+              <Input
+                placeholder={
+                  connectionStatus === "connected"
+                    ? "Type a message..."
+                    : "Connecting to server..."
+                }
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={connectionStatus !== "connected"}
+                className="flex-1"
+              />
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0"
+                onClick={sendMessage}
+                disabled={!message.trim() || connectionStatus !== "connected"}
+              >
                 <Send className="h-5 w-5" />
               </Button>
             </div>
-          </div>
-        </main>
 
+            {connectionStatus !== "connected" && (
+              <div className="flex items-center justify-center mt-2">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${connectionStatus === "connecting" ? "bg-amber-400" : "bg-red-400"
+                      } opacity-75`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${connectionStatus === "connecting" ? "bg-amber-500" : "bg-red-500"
+                      }`}></span>
+                  </span>
+                  {connectionStatus === "connecting" ? "Connecting to server..." : "Disconnected"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Participants Sidebar */}
         <AnimatePresence>
           {showParticipants && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 300, opacity: 1 }}
+              animate={{ width: 280, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="border-l border-border/40 h-full overflow-hidden"
+              transition={{ duration: 0.3 }}
+              className="border-l border-border overflow-hidden bg-background"
             >
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold">Participants</h2>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowParticipants(false)}>
+              <div className="p-4 border-b border-border">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Participants</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowParticipants(false)}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
 
-                <div className="space-y-1">
+              <ScrollArea className="h-full p-4">
+                <div className="space-y-2">
                   {participants.map((participant) => (
-                    <motion.div
+                    <div
                       key={participant.id}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.2 }}
-                      whileHover={{ backgroundColor: "rgba(249, 115, 22, 0.1)" }}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/50"
+                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={participant.avatar || "/placeholder.svg"} />
-                            <AvatarFallback>
-                              <User className="h-4 w-4" />
-                            </AvatarFallback>
-                          </Avatar>
-                          <span
-                            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background ${
-                              participant.status === "online"
-                                ? "bg-green-500"
-                                : participant.status === "away"
-                                  ? "bg-yellow-500"
-                                  : "bg-gray-500"
-                            }`}
-                          />
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {participant.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
                         <div>
                           <p className="text-sm font-medium">
                             {participant.name}
                             {participant.isCurrentUser && " (You)"}
                           </p>
-                          <p className="text-xs text-muted-foreground capitalize">{participant.status}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {participant.status}
+                          </p>
                         </div>
                       </div>
-
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </motion.div>
+                      <div className="flex items-center">
+                        <span className={`h-2 w-2 rounded-full ${participant.status === "online"
+                          ? "bg-green-500"
+                          : "bg-amber-500"
+                          }`} />
+                      </div>
+                    </div>
                   ))}
                 </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AI Summary Sidebar */}
+        <AnimatePresence>
+          {showSummary && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="border-l border-border overflow-hidden bg-background"
+            >
+              <div className="p-4 border-b border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <h3 className="font-medium">AI Summary</h3>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowSummary(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
+              <ScrollArea className="h-full p-4">
+                <div className="space-y-4">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <h4 className="font-medium mb-2">Key Points</h4>
+                      <ul className="space-y-1 text-sm list-disc list-inside text-muted-foreground">
+                        <li>Summarized insights generated using AI for quick review.</li>
+                        <li>Each point is relevant to the selected content or discussion.</li>
+                        <li>Click on a point for deeper context (coming soon).</li>
+                        <li>Summaries are verifiable and timestamped on the blockchain.</li>
+                      </ul>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <h4 className="font-medium mb-2">Summary Text</h4>
+                      <p className="text-sm text-muted-foreground">
+                        This AI-generated summary condenses the conversation to its essential elements,
+                        allowing for quick understanding and easy sharing. All summaries are securely
+                        verified and stored for transparency.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </ScrollArea>
             </motion.div>
           )}
         </AnimatePresence>
