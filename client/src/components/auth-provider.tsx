@@ -37,7 +37,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
         }, 2000); // wait for 2 seconds before running auth logic
 
         return () => clearTimeout(timeout); // clean up on unmount
-    }, [activeWallet]);
+    }, [activeWallet, dispatch, router]);
 
     return <>{children}</>;
 };

@@ -38,6 +38,7 @@ import {
   FileText,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 // Mock data for participants
 const mockParticipants = [
@@ -387,7 +388,7 @@ export default function MeetingPage() {
                 >
                   {participant.isVideoOn ? (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <img
+                      <Image
                         src={participant.avatar || "/placeholder.svg"}
                         alt={participant.name}
                         className="w-full h-full object-cover"
@@ -710,7 +711,7 @@ export default function MeetingPage() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant={isScreenSharing ? "primary" : "secondary"}
+                  variant={isScreenSharing ? "default" : "destructive"}
                   size="icon"
                   onClick={toggleScreenShare}
                   className="h-12 w-12 rounded-full"

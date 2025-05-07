@@ -92,8 +92,9 @@ export default function SchedulePage() {
 
       toast({
         title: "Meeting Scheduled",
-        description: `"${meetingTitle}" has been scheduled for ${format(date, "PPP")} at 10:00 AM.`,
+        description: `&quot;${meetingTitle}&quot; has been scheduled for ${format(date, "PPP")} at 10:00 AM.`,
       })
+
     }, 1000)
   }
 
@@ -277,9 +278,9 @@ export default function SchedulePage() {
                   </div>
                   <h3 className="text-lg font-medium mb-2">No Sessions Scheduled</h3>
                   <p className="text-muted-foreground max-w-sm mb-6">
-                    There are no sessions scheduled for this date. Use the "Schedule Session" button to create a new
-                    session.
+                    There are no sessions scheduled for this date. Use the &quot;Schedule Session&quot; button to create a new session.
                   </p>
+
                 </div>
               )}
             </div>

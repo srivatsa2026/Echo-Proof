@@ -32,7 +32,8 @@ export default function SubscriptionPage() {
 
       toast({
         title: "Subscription Upgraded",
-        description: "You've successfully upgraded to the Pro plan.",
+        description: "You&apos;ve successfully upgraded to the Pro plan."
+
       })
     }, 1500)
   }
@@ -255,8 +256,9 @@ export default function SubscriptionPage() {
                 </div>
                 <h3 className="text-lg font-medium mb-2">No Billing History</h3>
                 <p className="text-muted-foreground max-w-sm">
-                  You're currently on the Free plan. Upgrade to Pro to view your billing history.
+                  You&apos;re currently on the Free plan. Upgrade to Pro to view your billing history.
                 </p>
+
               </div>
             )}
           </CardContent>

@@ -28,33 +28,39 @@ export default function SettingsPage() {
   const dispatch = useDispatch()
   const { toast } = useToast()
   const activeWallet = useActiveWallet()
-  const wallet_address = activeWallet?.getAdminAccount?.()?.address
-  const smart_wallet_address = activeWallet?.getAccount()?.address
+
+  const wallet_address = activeWallet?.getAdminAccount?.()?.address ?? ""
+  const smart_wallet_address = activeWallet?.getAccount?.()?.address ?? ""
+
   const user_name = useSelector((state: any) => state.user.name)
   const user_email = useSelector((state: any) => state.user.email)
-  console.log("the name is ", user_name)
-  const [name, setName] = useState(user_name || "")
-  const [email, setEmail] = useState(user_email || "")
+
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
 
-
-
+  // Fetch user details
   useEffect(() => {
-    dispatch<any>(getUserDetails({
-      wallet_address, smart_wallet_address
-    }))
-  }, [])
+    if (wallet_address && smart_wallet_address) {
+      dispatch<any>(getUserDetails({ wallet_address, smart_wallet_address }))
+    }
+  }, [dispatch, wallet_address, smart_wallet_address])
+
+  // Sync local state when redux state updates
+  useEffect(() => {
+    if (user_name) setName(user_name)
+    if (user_email) setEmail(user_email)
+  }, [user_name, user_email, dispatch])
 
   const updateProfile = async () => {
     try {
-      dispatch<any>(updateUserProfile({
+      await dispatch<any>(updateUserProfile({
         name,
         email,
         toast,
         wallet_address,
         smart_wallet_address,
       }))
-
 
       toast({
         title: "Profile Updated",
@@ -88,6 +94,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Account Settings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -100,7 +107,6 @@ export default function SettingsPage() {
               <CardDescription>Manage your account details and preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-
               {/* Wallet Details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Wallet Details</h3>
@@ -119,7 +125,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Admin Wallet Address</p>
-                      <p className="text-sm font-mono break-all">{wallet_address}</p>
+                      <p className="text-sm font-mono break-all">{wallet_address || "Not connected"}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -138,7 +144,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Smart Wallet Address</p>
-                      <p className="text-sm font-mono break-all">{smart_wallet_address}</p>
+                      <p className="text-sm font-mono break-all">{smart_wallet_address || "Not connected"}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -203,7 +209,6 @@ export default function SettingsPage() {
                   </DialogContent>
                 </Dialog>
               </div>
-
             </CardContent>
           </Card>
         </motion.div>
@@ -227,8 +232,8 @@ export default function SettingsPage() {
                     <User className="h-12 w-12" />
                   </AvatarFallback>
                 </Avatar>
-                <h3 className="text-lg font-medium">{user_name}</h3>
-                <p className="text-sm text-muted-foreground mb-2">{user_email}</p>
+                <h3 className="text-lg font-medium">{user_name || "Anonymous"}</h3>
+                <p className="text-sm text-muted-foreground mb-2">{user_email || "No email"}</p>
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                   Free Plan
                 </Badge>

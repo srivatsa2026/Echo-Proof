@@ -42,7 +42,7 @@ export function LandingHero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          Create secure chatrooms, host video meetings, and collaborate in real-time with EchoProof's decentralized
+          Create secure chatrooms, host video meetings, and collaborate in real-time with EchoProof&#39;s decentralized
           platform.
         </motion.p>
         <motion.div

@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Search, Video, Play, Download, MoreVertical, Trash2, Calendar, Users } from "lucide-react"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 // Mock data for recordings
 const recordings = [
@@ -113,7 +114,7 @@ export default function RecordingsPage() {
           >
             <Card className="overflow-hidden">
               <div className="relative">
-                <img
+                <Image
                   src={recording.thumbnail || "/placeholder.svg"}
                   alt={recording.roomName}
                   className="w-full h-48 object-cover"

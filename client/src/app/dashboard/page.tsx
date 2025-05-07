@@ -65,13 +65,13 @@ export default function DashboardPage() {
   const activeWallet = useActiveWallet()
   const { toast } = useToast()
 
-  
-  useEffect(() => {
-    dispatch(stateLogin({
-      wallet_address: activeWallet?.getAccount()?.address,
-      smart_wallet_address: activeWallet?.getAdminAccount?.()?.address
-    }))
-  }, [])
+
+  // useEffect(() => {
+  //   dispatch(stateLogin({
+  //     wallet_address: activeWallet?.getAccount()?.address,
+  //     smart_wallet_address: activeWallet?.getAdminAccount?.()?.address
+  //   }))
+  // }, [])
 
 
   const createMeeting = () => {
@@ -167,7 +167,7 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-        <JoinChatroom  />
+        <JoinChatroom />
         {/* the below commented card is for the meeting scheduling */}
         {/* <Card>
           <CardHeader className="pb-3">
@@ -345,8 +345,9 @@ export default function DashboardPage() {
               </div>
               <h3 className="text-lg font-medium mb-2">No Recent Sessions</h3>
               <p className="text-muted-foreground max-w-sm">
-                You haven't participated in any sessions recently. Create a new chatroom or meeting to get started.
+                You haven&apos;t participated in any sessions recently. Create a new chatroom or meeting to get started.
               </p>
+
             </div>
           </TabsContent>
         </Tabs>
