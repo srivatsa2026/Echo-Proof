@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { stateLogin } from "@/store/reducers/userSlice"
 import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
+import JoinChatroom from "@/components/chatroom/joinChatroom"
 import { useActiveWallet } from "thirdweb/react"
 import { useDispatch } from "react-redux"
 
@@ -64,29 +65,14 @@ export default function DashboardPage() {
   const activeWallet = useActiveWallet()
   const { toast } = useToast()
 
-
-
+  
   useEffect(() => {
     dispatch(stateLogin({
       wallet_address: activeWallet?.getAccount()?.address,
       smart_wallet_address: activeWallet?.getAdminAccount?.()?.address
     }))
   }, [])
-  const createChatroom = () => {
-    setIsCreatingChatroom(true)
 
-    // Simulate chatroom creation
-    setTimeout(() => {
-      const id = "chat-" + Math.random().toString(36).substring(2, 8)
-      setSessionId(id)
-      setIsCreatingChatroom(false)
-
-      toast({
-        title: "Chatroom Created",
-        description: "Your chatroom has been created successfully.",
-      })
-    }, 1000)
-  }
 
   const createMeeting = () => {
     setIsCreatingMeeting(true)
@@ -137,49 +123,6 @@ export default function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center">
-              <MessageSquare className="h-5 w-5 mr-2 text-primary" />
-              Create Chatroom
-            </CardTitle>
-            <CardDescription>Start a new chatroom for your team</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={createChatroom} disabled={isCreatingChatroom} className="w-full">
-              {isCreatingChatroom ? (
-                <span className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Creating...
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Chatroom
-                </span>
-              )}
-            </Button>
-          </CardContent>
-        </Card> */}
         <CreateChatroomCard />
         <Card>
           <CardHeader className="pb-3">
@@ -224,6 +167,7 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
+        <JoinChatroom  />
         {/* the below commented card is for the meeting scheduling */}
         {/* <Card>
           <CardHeader className="pb-3">
