@@ -67,9 +67,7 @@ export default function UserActivity() {
 
         try {
             const response = await axios.get('/api/get-user-activity')
-            console.log('Activity Response:', response.data)
-
-            const chatroomsData = response?.data?.chatrooms || []
+            const chatroomsData = response.data.chatrooms || []
 
             const formattedData: Meeting[] = chatroomsData.map((item: any) => ({
                 id: item.id || '',
@@ -123,7 +121,7 @@ export default function UserActivity() {
             </div>
             <h3 className="text-lg font-medium mb-2">No Sessions Found</h3>
             <p className="text-muted-foreground max-w-sm">
-                You don't have any sessions in this category. Create a new chatroom or meeting to get started.
+                You don&apos;t have any sessions in this category. Create a new chatroom or meeting to get started.
             </p>
         </div>
     )
