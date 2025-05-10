@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { motion } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { CalendarIcon, RefreshCw } from 'lucide-react'
 import { Button } from '../ui/button'
 import Link from 'next/link'
+import { useToast } from '@/hooks/use-toast' // make sure this is correct for your project
 
 interface Meeting {
     id: string
@@ -35,11 +36,14 @@ const CustomLoader = () => (
 )
 
 export default function UserActivity() {
+    const { toast } = useToast()
     const [chatrooms, setChatrooms] = useState<Meeting[]>([])
     const [videoMeetings, setVideoMeetings] = useState<Meeting[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [refreshing, setRefreshing] = useState(false)
+
+    const hasFetched = useRef(false)
 
     const formatDate = (dateString: string): string => {
         try {
@@ -102,12 +106,17 @@ export default function UserActivity() {
     }, [])
 
     useEffect(() => {
+        if (hasFetched.current) return
+        hasFetched.current = true
         fetchUserActivity()
     }, [fetchUserActivity])
 
     const handleCopy = (id: string) => {
         navigator.clipboard.writeText(id)
-        alert(`Copied activity ID: ${id}`)
+        toast({
+            title: 'Copied!',
+            description: `Activity ID "${id}" copied to clipboard.`,
+        })
     }
 
     const handleRefresh = () => {
@@ -131,13 +140,15 @@ export default function UserActivity() {
             const basePath = type === 'chatroom' ? '/chatroom' : '/meetings'
             return (
                 <Card key={meeting.id} className="mb-4 p-2">
-                    <CardContent>
-                        <h3 className="text-lg font-medium">{meeting.name}</h3>
-                        <p className="text-sm text-muted-foreground">{meeting.purpose}</p>
-                        <p className="text-xs">{formatDate(meeting.created_at)}</p>
-                        <div className="flex items-center justify-between mt-4">
+                    <CardContent className="flex flex-row justify-between items-center">
+                        <div className='pt-3'>
+                            <h3 className="text-lg font-medium">{meeting.name}</h3>
+                            <p className="text-sm text-muted-foreground">{meeting.purpose}</p>
+                            <p className="text-xs">{formatDate(meeting.created_at)}</p>
+                        </div>
+                        <div className="flex items-center justify-between mt-4 gap-2">
                             <Button onClick={() => handleCopy(meeting.id)}>Copy ID</Button>
-                            <Button variant="outline">
+                            <Button variant="secondary">
                                 <Link href={`${basePath}/${meeting.id}`} className="text-primary">
                                     Join
                                 </Link>
