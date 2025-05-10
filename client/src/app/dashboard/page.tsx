@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { stateLogin } from "@/store/reducers/userSlice"
 import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
-import JoinChatroom from "@/components/chatroom/joinChatroom"
 import { useActiveWallet } from "thirdweb/react"
 import { useDispatch } from "react-redux"
+import UserActivity from "@/components/dashboard/userActivity"
 
 // Mock data for upcoming meetings
 const upcomingMeetings = [
@@ -167,7 +167,6 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-        <JoinChatroom />
         {/* the below commented card is for the meeting scheduling */}
         {/* <Card>
           <CardHeader className="pb-3">
@@ -280,78 +279,7 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
-      >
-        <Tabs defaultValue="upcoming">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Your Sessions</h2>
-            <TabsList>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="recent">Recent</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="upcoming" className="space-y-4">
-            {upcomingMeetings.map((meeting, index) => (
-              <motion.div
-                key={meeting.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-              >
-                <Card>
-                  <CardContent className="p-0">
-                    <div className="flex items-center p-4 gap-4">
-                      <div
-                        className={cn(
-                          "h-10 w-10 rounded-full flex items-center justify-center",
-                          meeting.type === "meeting" ? "bg-primary/20" : "bg-secondary",
-                        )}
-                      >
-                        {meeting.type === "meeting" ? (
-                          <Video className="h-5 w-5 text-primary" />
-                        ) : (
-                          <MessageSquare className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium truncate">{meeting.title}</h3>
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <CalendarIcon className="mr-1 h-3 w-3" />
-                          <span>{format(meeting.date, "PPP")} at 10:00 AM</span>
-                          <span className="mx-2">•</span>
-                          <span>{meeting.participants} participants</span>
-                        </div>
-                      </div>
-                      <Button asChild size="sm">
-                        <Link href={meeting.type === "chatroom" ? `/chatroom/${meeting.id}` : `/meeting/${meeting.id}`}>
-                          {meeting.type === "chatroom" ? "Join Chat" : "Join Meeting"}
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </TabsContent>
-
-          <TabsContent value="recent">
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                <CalendarIcon className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">No Recent Sessions</h3>
-              <p className="text-muted-foreground max-w-sm">
-                You haven&apos;t participated in any sessions recently. Create a new chatroom or meeting to get started.
-              </p>
-
-            </div>
-          </TabsContent>
-        </Tabs>
-      </motion.div>
+      <UserActivity />
     </div>
   )
 }

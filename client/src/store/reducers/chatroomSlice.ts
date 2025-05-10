@@ -96,7 +96,7 @@ const chatroomSlice = createSlice({
                 state.purpose = action.payload.chatroom.purpose;
                 state.active = action.payload.chatroom.active;
                 state.creator = action.payload.chatroom.creator_id;
-                state.chatrooms.push(action.payload);
+                state.chatrooms.push(action.payload.chatroom);
             })
 
             .addCase(createChatroom.rejected, (state, action) => {

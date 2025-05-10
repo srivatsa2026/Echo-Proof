@@ -21,6 +21,7 @@ import { useSelector, useDispatch } from "react-redux"
 import { createChatroom } from "@/store/reducers/chatroomSlice"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import JoinChatroom from "./joinChatroom"
 
 interface Props {
     onCreated?: (sessionId: string) => void
@@ -68,10 +69,10 @@ export function CreateChatroomCard({ onCreated }: Props) {
                     router
                 })
             ).unwrap()
-            console.log("the result is ",result)
+            console.log("the result is ", result.chatroom.id)
             if (result?.sessionId) {
-                setSessionId(result.sessionId)
-                onCreated?.(result.sessionId)
+                setSessionId(result.chatroom.id)
+                onCreated?.(result.chatroom.id)
             }
 
             setRoomName("")
@@ -145,38 +146,7 @@ export function CreateChatroomCard({ onCreated }: Props) {
                 </CardContent>
             </Card>
 
-            {sessionId && (
-                <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                >
-                    <Card className="border-primary/20 bg-primary/5 mt-4">
-                        <CardContent className="pt-6">
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                <div>
-                                    <h3 className="text-lg font-medium mb-1">Chatroom Created Successfully</h3>
-                                    <p className="text-sm text-muted-foreground">Share this session ID with others to invite them</p>
-                                </div>
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <Input value={sessionId} readOnly className="font-mono text-sm bg-background/50" />
-                                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(sessionId)}>
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                            <div className="mt-4 flex justify-end">
-                                <Button asChild>
-                                    <Link href={`/chatroom/${sessionId}`}>
-                                        Join Chatroom
-                                    </Link>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </motion.div>
-            )}
+            <JoinChatroom roomId={sessionId} />
         </>
     )
 }

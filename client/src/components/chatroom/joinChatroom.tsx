@@ -4,20 +4,21 @@ import { Card, CardContent } from '../ui/card'
 import { Input } from '../ui/input'
 import { motion } from 'framer-motion'
 import { Button } from '../ui/button'
-import { Copy } from 'lucide-react'
-import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
-import { useSelector } from 'react-redux'
+import { useRouter } from 'next/navigation'
+import axios from 'axios'
+import { Copy } from 'lucide-react'
 
 export default function JoinChatroom({ roomId }: { roomId?: string }) {
     const { toast } = useToast()
+    const router = useRouter()
+    const [sessionId, setSessionId] = useState(roomId || '')
+    const [isCopying, setIsCopying] = useState(false)
 
-    const [sessionId, setSessionId] = useState("")
-    const room = useSelector((state: any) => state?.chatroom?.id)
-    console.log("the session id from the join room is ", room)
+    const handleJoin = async () => {
+        const room = sessionId.trim() || roomId?.trim()
 
-    const handleJoin = () => {
-        if (!sessionId.trim()) {
+        if (!room) {
             toast({
                 title: "Missing Session ID",
                 description: "Please enter a valid session ID to join the meeting.",
@@ -26,19 +27,49 @@ export default function JoinChatroom({ roomId }: { roomId?: string }) {
             return
         }
 
-        // Check if the session ID is valid (you can replace this with a real check)
-        if (sessionId === "valid_session_id") {
-            // Redirect or handle valid session join logic
+        try {
+            const response = await axios.post('/api/join-chatroom', { roomId: room })
+            console.log("the response from the join room is ", response)
+            if (response.data.success) {
+                toast({
+                    title: "Joining...",
+                    description: "Redirecting to the chatroom.",
+                })
+                router.push(`/chatroom/${room}`)
+            } else {
+                toast({
+                    title: "Inactive Room",
+                    description: response.data.message || "The session might be terminated or inactive.",
+                    variant: "destructive",
+                })
+            }
+        } catch (err: any) {
+            console.error("Error checking room status:", err)
             toast({
-                title: "Joining...",
-                description: "You are being redirected to the chatroom.",
-            })
-        } else {
-            toast({
-                title: "Invalid Session ID",
-                description: "The session ID entered is invalid.",
+                title: "Error",
+                description: err.response?.data?.message || "Something went wrong while checking the room status.",
                 variant: "destructive",
             })
+        }
+    }
+
+    const handleCopy = async () => {
+        if (!sessionId.trim()) return
+        try {
+            setIsCopying(true)
+            await navigator.clipboard.writeText(sessionId)
+            toast({
+                title: "Copied!",
+                description: "Session ID has been copied to clipboard.",
+            })
+        } catch (err) {
+            toast({
+                title: "Copy Failed",
+                description: "Unable to copy to clipboard.",
+                variant: "destructive",
+            })
+        } finally {
+            setIsCopying(false)
         }
     }
 
@@ -61,12 +92,24 @@ export default function JoinChatroom({ roomId }: { roomId?: string }) {
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
                                 <Input
-                                    value={sessionId || room}
+                                    value={sessionId || roomId}
                                     onChange={(e) => setSessionId(e.target.value)}
                                     placeholder="Enter session ID"
                                     className="font-mono text-sm bg-background/50"
                                     aria-label="Session ID"
                                 />
+                                {sessionId.trim() !== '' && (
+                                    <Button
+                                        size="icon"
+                                        variant="secondary"
+                                        onClick={handleCopy}
+                                        disabled={isCopying}
+                                        className="shrink-0"
+                                        title="Copy Session ID"
+                                    >
+                                        <Copy className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </div>
                         </div>
                         <div className="mt-4 flex justify-end">

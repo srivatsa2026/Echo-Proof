@@ -13,7 +13,6 @@ const client = createThirdwebClient({
 const thirdwebAuth = createAuth({
     domain: "localhost:3000", // your domain
     client,
-    // your backend wallet to sign login payloads
     adminAccount: privateKeyToAccount({ client, privateKey }),
 });
 
