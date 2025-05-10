@@ -137,7 +137,7 @@ export default function UserActivity() {
                         <p className="text-xs">{formatDate(meeting.created_at)}</p>
                         <div className="flex items-center justify-between mt-4">
                             <Button onClick={() => handleCopy(meeting.id)}>Copy ID</Button>
-                            <Button variant="link">
+                            <Button variant="outline">
                                 <Link href={`${basePath}/${meeting.id}`} className="text-primary">
                                     Join
                                 </Link>
