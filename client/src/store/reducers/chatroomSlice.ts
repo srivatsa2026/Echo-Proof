@@ -49,7 +49,7 @@ export const createChatroom = createAsyncThunk(
                 roomName,
                 purpose,
                 creator_id
-            })
+            }, { withCredentials: true })
             console.log("the response from the chat room slice is ", response.data)
             const data = response.data
             toast({

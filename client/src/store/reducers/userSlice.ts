@@ -84,7 +84,7 @@ export const updateUserProfile = createAsyncThunk(
                 email,
                 wallet_address,
                 smart_wallet_address,
-            });
+            }, { withCredentials: true });
 
             toast({
                 title: "Profile updated",
@@ -114,7 +114,7 @@ export const getUserDetails = createAsyncThunk(
             const response = await axios.post("/api/get-user", {
                 wallet_address,
                 smart_wallet_address,
-            });
+            }, { withCredentials: true });
             console.log("the reponse of the profile is ", response.data)
 
             return response.data;

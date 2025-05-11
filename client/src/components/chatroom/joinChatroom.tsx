@@ -28,7 +28,7 @@ export default function JoinChatroom({ roomId }: { roomId?: string }) {
         }
 
         try {
-            const response = await axios.post('/api/join-chatroom', { roomId: room })
+            const response = await axios.post('/api/join-chatroom', { roomId: room }, { withCredentials: true })
             console.log("the response from the join room is ", response)
             if (response.data.success) {
                 toast({

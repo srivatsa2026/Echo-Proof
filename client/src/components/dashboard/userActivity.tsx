@@ -70,7 +70,7 @@ export default function UserActivity() {
         setError(null)
 
         try {
-            const response = await axios.get('/api/get-user-activity')
+            const response = await axios.get('/api/get-user-activity', { withCredentials: true })
             const chatroomsData = response.data.chatrooms || []
 
             const formattedData: Meeting[] = chatroomsData.map((item: any) => ({

@@ -30,6 +30,7 @@ export async function POST(req: Request) {
             .select("*")
             .eq("wallet_address", walletAddress)
             .maybeSingle();
+        console.log("the user inside the create chatroom is ", userData)
         if (userError || !userData) {
             return NextResponse.json(
                 { message: "User not found. Please register before creating a chatroom." },

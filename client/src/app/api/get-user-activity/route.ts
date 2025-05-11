@@ -13,20 +13,22 @@ export async function GET(req: NextRequest) {
                 { status: 401 }
             );
         }
-
+        console.log("the jwt is ", jwt)
         const payload = await thirdwebAuth.verifyJWT({ jwt });
+        console.log("the payload is ", payload)
 
         if (!payload.valid) {
             return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
         }
 
-        const walletAddress = payload.parsedJWT.iss;
+        const walletAddress = payload.parsedJWT.sub;
+        console.log("the wallet address of the user is ", walletAddress)
 
         // Confirm user exists
         const { data: userData, error: userError } = await supabase
             .from("users")
-            .select("id")
-            .eq("wallet_address", walletAddress)
+            .select("*")
+            .eq("smart_wallet_address", walletAddress)
             .maybeSingle();
 
         if (userError || !userData) {
