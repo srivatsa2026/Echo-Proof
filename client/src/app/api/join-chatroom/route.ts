@@ -28,12 +28,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
     }
 
-    const walletAddress = payload.parsedJWT.iss;
+    const walletAddress = payload.parsedJWT.sub;
 
     const { data: userData, error: userError } = await supabase
         .from("users")
         .select("*")
-        .eq("wallet_address", walletAddress)
+        .eq("smart_wallet_address", walletAddress)
         .maybeSingle();
 
     if (userError || !userData) {

@@ -22,13 +22,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
         }
 
-        const walletAddress = payload.parsedJWT.iss;
+        const walletAddress = payload.parsedJWT.sub;
 
         // Check if user exists in the database using the wallet address
         const { data: userData, error: userError } = await supabase
             .from("users")  // replace with your actual user table name if different
             .select("*")
-            .eq("wallet_address", walletAddress)
+            .eq("smart_wallet_address", walletAddress)
             .maybeSingle();
         console.log("the user inside the create chatroom is ", userData)
         if (userError || !userData) {
