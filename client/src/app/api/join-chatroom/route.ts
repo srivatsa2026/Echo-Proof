@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
             { status: 404 }
         );
     }
-
+    console.log("the join room user is ", userData)
     const { data: chatroom, error: chatroomError } = await supabase
         .from("chatrooms")
         .select("active")

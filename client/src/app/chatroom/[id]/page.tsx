@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { io, Socket } from "socket.io-client"
 import ShowSummary from "@/components/chatroom/showSummary"
+import { useActiveWallet } from "thirdweb/react"
 
 // Define types for the app
 interface Participant {
@@ -37,6 +38,8 @@ interface Participant {
 
 interface MessageSender {
   id: string;
+  wallet_address?: string,
+  smart_wallet_address?: string
   name: string;
 }
 
@@ -81,6 +84,7 @@ export default function ChatroomPage() {
   const router = useRouter()
   const params = useParams()
   const chatroomId = params.id as string
+  const smart_wallet_address = useActiveWallet()?.getAccount()?.address
 
   // State management
   const [message, setMessage] = useState("")
@@ -128,7 +132,7 @@ export default function ChatroomPage() {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-    })
+    },)
 
     // Set up event listeners
     newSocket.on("connect", () => {
@@ -391,7 +395,8 @@ export default function ChatroomPage() {
     socket.emit("message", {
       room: chatroomId,
       message: message,
-      username: username
+      username: username,
+      smart_wallet_address: smart_wallet_address
     })
 
     setMessage("")
@@ -619,7 +624,7 @@ export default function ChatroomPage() {
                     variant="ghost"
                     size="icon"
                     onClick={generateSummary}
-                    // disabled={isGeneratingSummary || messages.length < 5}
+                  // disabled={isGeneratingSummary || messages.length < 5}
                   >
                     <Sparkles className="h-5 w-5" />
                   </Button>

@@ -32,6 +32,7 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     """Handles client connection."""
+    print("the request from the connect event is ",request)
     user_id = request.sid
     logger.info(f"🔌 Client connected: {user_id}")
     
@@ -196,6 +197,7 @@ def handle_leave(data):
 def handle_message(data):
     """Handles incoming messages."""
     user_id = request.sid
+    smart_wallet_address = data.get("smart_wallet_address")
     room_id = data.get("room")
     message_text = data.get("message")
     user_name = data.get("username", users.get(user_id, {}).get("name", "Unknown User"))
@@ -215,7 +217,7 @@ def handle_message(data):
         return
     
     timestamp = datetime.now().isoformat()
-    logger.info(f"📩 Received message in room {room_id} from {user_name}: {message_text}")
+    logger.info(f"📩 Received message in room {room_id} from {user_name} and the smart address is {smart_wallet_address}: {message_text} and the request.sid is {request.sid} and the request is {request}")
     
     # Create message object
     message_obj = {
