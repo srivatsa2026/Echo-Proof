@@ -10,13 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Send, User, Users, X, Info, LogOut, Copy,
@@ -27,6 +21,9 @@ import { useToast } from "@/hooks/use-toast"
 import { io, Socket } from "socket.io-client"
 import ShowSummary from "@/components/chatroom/showSummary"
 import { useActiveWallet } from "thirdweb/react"
+import Cookies from "js-cookie"
+import axios from "axios"
+import { useSelector } from "react-redux"
 
 // Define types for the app
 interface Participant {
@@ -85,7 +82,8 @@ export default function ChatroomPage() {
   const params = useParams()
   const chatroomId = params.id as string
   const smart_wallet_address = useActiveWallet()?.getAccount()?.address
-
+  const userId = useSelector((state: any) => state?.user?.id)
+  console.log("the userid in the chatroom is ",userId)
   // State management
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -102,14 +100,14 @@ export default function ChatroomPage() {
     }
     return `User-${Math.floor(Math.random() * 10000)}`
   })
-  const [userId, setUserId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
   const [tempUsername, setTempUsername] = useState("")
   const [showError, setShowError] = useState(false)
-
+  const token: any = Cookies.get("jwt")
+  console.log("the cookies is ", token)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
@@ -132,6 +130,7 @@ export default function ChatroomPage() {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      auth: token || "token"
     },)
 
     // Set up event listeners
@@ -210,9 +209,6 @@ export default function ChatroomPage() {
     // Socket event handlers
     newSocket.on("connection_status", (data: { userId: string }) => {
       console.log("Connection status:", data)
-      if (data.userId) {
-        setUserId(data.userId)
-      }
     })
 
     newSocket.on("error", (data: { message: string }) => {
@@ -373,10 +369,9 @@ export default function ChatroomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message.trim() || !socket || connectionStatus !== "connected") return
 
-    // Create local message object (will appear immediately)
     const newMessage: Message = {
       id: `msg-${Date.now()}-local`,
       sender: {
@@ -385,9 +380,16 @@ export default function ChatroomPage() {
       },
       content: message,
       timestamp: new Date(),
-      pending: true  // Mark as pending until confirmed
+      pending: true
     }
 
+    const response = await axios.post("/api/messages", {
+      senderId: userId,
+      messageText: message,
+      chatroomId: chatroomId,
+      sent_at: new Date()
+    })
+    console.log("the response of the message storage is ")
     // Add to local messages
     setMessages(prev => [...prev, newMessage])
 
