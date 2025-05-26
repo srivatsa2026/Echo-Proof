@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import datetime
 import json
-
+from utils import get_supabase_client
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Initialize Supabase client
+supabase = get_supabase_client()
 
 # A dictionary to store rooms and their participants
 rooms = {}
@@ -197,11 +199,13 @@ def handle_leave(data):
 def handle_message(data):
     """Handles incoming messages."""
     user_id = request.sid
+    userDbId = data.get("userDbId")
     smart_wallet_address = data.get("smart_wallet_address")
     room_id = data.get("room")
     message_text = data.get("message")
     user_name = data.get("username", users.get(user_id, {}).get("name", "Unknown User"))
-    
+    timestamp = datetime.now().isoformat()
+    # logger.info(f"userDbId is {userDbId} and the smart wallet address is {smart_wallet_address}")
     if not room_id or not message_text:
         emit("error", {"message": "Room ID and message are required."})
         return
@@ -216,7 +220,6 @@ def handle_message(data):
         emit("error", {"message": "You are not in this room."})
         return
     
-    timestamp = datetime.now().isoformat()
     logger.info(f"📩 Received message in room {room_id} from {user_name} and the smart address is {smart_wallet_address}: {message_text} and the request.sid is {request.sid} and the request is {request}")
     
     # Create message object
@@ -236,7 +239,13 @@ def handle_message(data):
     
     # Broadcast the message to everyone in the room EXCEPT the sender
     emit("message_received", message_obj, room=room_id, include_self=False)
-    
+    db_response = supabase.table("messages").insert({
+        "chatroom_id": room_id,
+        "sender_id": userDbId,
+        "message_text": message_text,
+        "sent_at": timestamp
+    }).execute()
+    logger.info(f"DB response: {db_response}")
     # Send confirmation to the sender
     emit("message_sent", message_obj)
 

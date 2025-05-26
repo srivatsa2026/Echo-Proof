@@ -40,7 +40,7 @@ interface MessageSender {
   name: string;
 }
 
-interface Message {
+export interface Message {
   id: string;
   sender: MessageSender;
   content: string;
@@ -54,10 +54,7 @@ interface SummaryData {
   nextSteps: string;
 }
 
-// Initial state for messages
 const initialMessages: Message[] = []
-
-// Initial state for participants (just the current user)
 const initialParticipants: Participant[] = []
 
 // Mock AI summary (will be replaced with real API in production)
@@ -82,8 +79,9 @@ export default function ChatroomPage() {
   const params = useParams()
   const chatroomId = params.id as string
   const smart_wallet_address = useActiveWallet()?.getAccount()?.address
+  const wallet_address = useActiveWallet()?.getAdminAccount?.()?.address
   const userId = useSelector((state: any) => state?.user?.id)
-  console.log("the userid in the chatroom is ",userId)
+  console.log("the userid in the chatroom is ", userId)
   // State management
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -375,27 +373,23 @@ export default function ChatroomPage() {
     const newMessage: Message = {
       id: `msg-${Date.now()}-local`,
       sender: {
-        id: socket.id || "unknown-id",
-        name: username
+        id: userId || "unknown-id",
+        name: username,
+        smart_wallet_address:smart_wallet_address,
+        wallet_address:wallet_address
       },
       content: message,
       timestamp: new Date(),
       pending: true
     }
 
-    const response = await axios.post("/api/messages", {
-      senderId: userId,
-      messageText: message,
-      chatroomId: chatroomId,
-      sent_at: new Date()
-    })
-    console.log("the response of the message storage is ")
     // Add to local messages
     setMessages(prev => [...prev, newMessage])
 
     // Send to server
     socket.emit("message", {
       room: chatroomId,
+      userDbId: userId,
       message: message,
       username: username,
       smart_wallet_address: smart_wallet_address
@@ -675,7 +669,7 @@ export default function ChatroomPage() {
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex gap-3 ${msg.sender.id === socket?.id ? "justify-end" : "justify-start"
+                    className={`flex gap-3 ${msg.sender.id === userId ? "justify-end" : "justify-start"
                       }`}
                   >
                     {msg.sender.id !== socket?.id && (
@@ -686,12 +680,12 @@ export default function ChatroomPage() {
                       </Avatar>
                     )}
                     <div
-                      className={`flex flex-col max-w-[70%] ${msg.sender.id === socket?.id ? "items-end" : "items-start"
+                      className={`flex flex-col max-w-[70%] ${msg.sender.id === userId ? "items-end" : "items-start"
                         }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-muted-foreground">
-                          {msg.sender.id === socket?.id ? "You" : msg.sender.name}
+                          {msg.sender.id === userId ? "You" : msg.sender.name}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatTime(msg.timestamp)}
@@ -703,7 +697,7 @@ export default function ChatroomPage() {
                         )}
                       </div>
                       <div
-                        className={`rounded-lg px-4 py-2 break-words ${msg.sender.id === socket?.id
+                        className={`rounded-lg px-4 py-2 break-words ${msg.sender.id === userId
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted"
                           }`}
@@ -711,7 +705,7 @@ export default function ChatroomPage() {
                         {msg.content}
                       </div>
                     </div>
-                    {msg.sender.id === socket?.id && (
+                    {msg.sender.id === userId && (
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>
                           {msg.sender.name ? msg.sender.name.charAt(0).toUpperCase() : "U"}
@@ -847,7 +841,7 @@ export default function ChatroomPage() {
         </AnimatePresence>
 
         {/* AI Summary Sidebar */}
-        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} />
+        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} messages={messages}/>
       </div>
     </div>
   )

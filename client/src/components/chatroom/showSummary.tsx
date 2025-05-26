@@ -5,14 +5,19 @@ import React from 'react'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { Card, CardContent } from '../ui/card'
+import { Message } from '@/app/chatroom/[id]/page'
+import GenerateSummary from '@/lib/generate-summary'
 
 // TypeScript types for the props
 interface ShowSummaryProps {
     showSummary: boolean;
     setShowSummary: React.Dispatch<React.SetStateAction<boolean>>;
+    messages: Message[]
 }
 
-export default function ShowSummary({ showSummary, setShowSummary }: ShowSummaryProps) {
+export default function ShowSummary({ showSummary, setShowSummary, messages }: ShowSummaryProps) {
+    const summary = GenerateSummary(messages)
+
     return (
         <AnimatePresence>
             {showSummary && (
