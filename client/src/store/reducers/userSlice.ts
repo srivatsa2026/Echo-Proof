@@ -115,7 +115,8 @@ export const getUserDetails = createAsyncThunk(
                 wallet_address,
                 smart_wallet_address,
             }, { withCredentials: true });
-            console.log("the reponse of the profile is ", response.data)
+            localStorage.setItem("userId", response.data?.user.id)
+            console.log("the reponse of the profile is ", response.data.user.id)
 
             return response.data;
         } catch (error: any) {

@@ -6,54 +6,51 @@ const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 async function GenerateSummary(content?: any) {
     const prompt = `
-    You are given an array of messages, each containing the following:
-    - An ID (msg-${Date.now()}-local)
-    - A sender object (with an ID and name)
-    - A content field (the message text)
-    - A timestamp (when the message was sent)
+You are provided with an array of messages representing a chronological conversation. Each message object includes:
 
-    The array reflects a chronological conversation or sequence of messages. Your task is to analyze the messages in the order of their timestamps and generate a coherent and concise summary of the discussion or content.
+- An ID (e.g., msg-<timestamp>-local)
+- A sender object containing:
+  - id
+  - name
+  - smart_wallet_address
+  - wallet_address
+- A content field (text message)
+- A timestamp (ISO string)
 
-    Please ensure the summary:
-    - Reflects the correct flow of conversation based on the timestamps.
-    - Captures the key points, actions, or insights shared.
-    - Omits redundant or repetitive information unless essential for context.
-    - Maintains clarity and coherence.
+Your task is to:
+1. **List all unique users** involved in the conversation along with their name, wallet address, and smart wallet address (if available).
+2. **Generate a concise and coherent summary** of the conversation based on the chronological order of messages.
 
-    Example input format:
-    [
-    {
-        "id": "msg-1625292000000-local",
-        "sender": {
-        "id": "user-1",
-        "name": "Alice"
-        },
-        "content": "Why is the sky blue?",
-        "timestamp": "2025-05-26T10:00:00Z"
-    },
-    {
-        "id": "msg-1625292020000-local",
-        "sender": {
-        "id": "user-2",
-        "name": "Bob"
-        },
-        "content": "It's due to Rayleigh scattering.",
-        "timestamp": "2025-05-26T10:02:00Z"
-    }
-    ]
+**Instructions:**
+- Only list each user once.
+- Show wallet and smart wallet addresses even if they're the same.
+- The summary should:
+  - Follow the correct time sequence.
+  - Highlight key points or discussion flow.
+  - Avoid repetition unless crucial.
+  - Be easy to understand and reflect actual conversation context.
 
-    Based on the above example, generate a concise summary based on the sequence of messages.
+Format your response exactly like this (DO NOT include any JSON formatting or code blocks):
+PARTICIPANTS:
+[List each participant with their details, one per line]
 
-    Content: ${JSON.stringify(content)}
-    `;
+---
+CONVERSATION SUMMARY:
+[Your summary of the conversation in plain text]
+
+Here is the message array you need to process:
+${JSON.stringify(content, null, 2)}
+`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash-001',
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 
-    console.log(response.text);
-    return response;
+    // Safely extract the text content from the response
+    const output = response.candidates?.[0]?.content?.parts?.[0]?.text || 'No summary generated.';
+    console.log("the summary is ", output)
+    return output;
 }
 
 export default GenerateSummary;

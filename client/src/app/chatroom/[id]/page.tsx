@@ -80,8 +80,6 @@ export default function ChatroomPage() {
   const chatroomId = params.id as string
   const smart_wallet_address = useActiveWallet()?.getAccount()?.address
   const wallet_address = useActiveWallet()?.getAdminAccount?.()?.address
-  const userId = useSelector((state: any) => state?.user?.id)
-  console.log("the userid in the chatroom is ", userId)
   // State management
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -91,6 +89,7 @@ export default function ChatroomPage() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [userId, setUserId] = useState("")
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
   const [username, setUsername] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -113,6 +112,9 @@ export default function ChatroomPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('chatUsername', username)
+      const userId = localStorage.getItem("userId");
+      setUserId(userId || "unknown-user")
+
     }
   }, [username])
 
@@ -375,8 +377,8 @@ export default function ChatroomPage() {
       sender: {
         id: userId || "unknown-id",
         name: username,
-        smart_wallet_address:smart_wallet_address,
-        wallet_address:wallet_address
+        smart_wallet_address: smart_wallet_address,
+        wallet_address: wallet_address
       },
       content: message,
       timestamp: new Date(),
@@ -669,26 +671,29 @@ export default function ChatroomPage() {
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex gap-3 ${msg.sender.id === userId ? "justify-end" : "justify-start"
+                    className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"
                       }`}
                   >
-                    {msg.sender.id !== socket?.id && (
-                      <Avatar className="h-8 w-8">
+                    {msg.sender?.id !== userId && (
+                      <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarFallback>
-                          {msg.sender.name ? msg.sender.name.charAt(0).toUpperCase() : "U"}
+                          {msg.sender?.name
+                            ? msg.sender.name.charAt(0).toUpperCase()
+                            : "U"
+                          }
                         </AvatarFallback>
                       </Avatar>
                     )}
                     <div
-                      className={`flex flex-col max-w-[70%] ${msg.sender.id === userId ? "items-end" : "items-start"
+                      className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"
                         }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-muted-foreground">
-                          {msg.sender.id === userId ? "You" : msg.sender.name}
+                          {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formatTime(msg.timestamp)}
+                          {msg.timestamp ? formatTime(msg.timestamp) : ""}
                         </span>
                         {msg.pending && (
                           <span className="text-xs text-muted-foreground italic">
@@ -697,18 +702,21 @@ export default function ChatroomPage() {
                         )}
                       </div>
                       <div
-                        className={`rounded-lg px-4 py-2 break-words ${msg.sender.id === userId
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
+                        className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
                           }`}
                       >
-                        {msg.content}
+                        {msg.content || ""}
                       </div>
                     </div>
-                    {msg.sender.id === userId && (
-                      <Avatar className="h-8 w-8">
+                    {msg.sender?.id === userId && (
+                      <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarFallback>
-                          {msg.sender.name ? msg.sender.name.charAt(0).toUpperCase() : "U"}
+                          {msg.sender?.name
+                            ? msg.sender.name.charAt(0).toUpperCase()
+                            : "U"
+                          }
                         </AvatarFallback>
                       </Avatar>
                     )}
@@ -841,7 +849,7 @@ export default function ChatroomPage() {
         </AnimatePresence>
 
         {/* AI Summary Sidebar */}
-        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} messages={messages}/>
+        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} messages={messages} />
       </div>
     </div>
   )

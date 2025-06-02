@@ -1,77 +1,157 @@
 'use client'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Sparkles, X } from 'lucide-react'
-import React from 'react'
+
+import { Sparkles } from 'lucide-react'
+import React, { useState } from 'react'
 import { Button } from '../ui/button'
-import { ScrollArea } from '../ui/scroll-area'
 import { Card, CardContent } from '../ui/card'
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '../ui/dialog'
 import { Message } from '@/app/chatroom/[id]/page'
 import GenerateSummary from '@/lib/generate-summary'
 
-// TypeScript types for the props
 interface ShowSummaryProps {
     showSummary: boolean;
     setShowSummary: React.Dispatch<React.SetStateAction<boolean>>;
-    messages: Message[]
+    messages: Message[];
 }
 
 export default function ShowSummary({ showSummary, setShowSummary, messages }: ShowSummaryProps) {
-    const summary = GenerateSummary(messages)
+    const [summary, setSummary] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchSummary = async () => {
+        try {
+            setIsLoading(true);
+            setSummary(""); 
+            const response: any = await GenerateSummary(messages);
+            setSummary(response);
+        } catch (error) {
+            console.error('Error generating summary:', error);
+            setSummary(""); 
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    // Auto-generate summary when messages change
+    React.useEffect(() => {
+        if (messages.length > 0) {
+            fetchSummary();
+        }
+    }, [messages]);
+
+    // Reset and regenerate summary when dialog opens
+    React.useEffect(() => {
+        if (showSummary && messages.length > 0) {
+            fetchSummary();
+        }
+    }, [showSummary]);
+
+    const renderSummaryContent = () => {
+        if (isLoading) {
+            return (
+                <Card>
+                    <CardContent className="pt-4">
+                        <h4 className="font-medium mb-2">Generating Summary...</h4>
+                        <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        </div>
+                        <p className="text-sm text-muted-foreground text-center">
+                            AI is analyzing the conversation...
+                        </p>
+                    </CardContent>
+                </Card>
+            );
+        }
+
+        if (!summary) {
+            return (
+                <Card>
+                    <CardContent className="pt-4">
+                        <h4 className="font-medium mb-2">Generate Summary</h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Click the button below to generate an AI summary of this conversation.
+                        </p>
+                        <Button
+                            onClick={fetchSummary}
+                            disabled={isLoading}
+                            className="w-full"
+                        >
+                            {isLoading ? 'Generating...' : 'Generate Summary'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            );
+        }
+
+        const [participantsSection, summarySection] = summary.split('---').map(section => section.trim());
+        const participants = participantsSection?.replace('PARTICIPANTS:', '').trim() || "No participants found.";
+        const summaryText = summarySection?.replace('CONVERSATION SUMMARY:', '').trim() || "Summary section missing.";
+
+        return (
+            <div className="space-y-4">
+                <Card>
+                    <CardContent className="pt-4">
+                        <h4 className="font-medium mb-2">Participants</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {participants}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="pt-4">
+                        <h4 className="font-medium mb-2">Conversation Summary</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">
+                            {summaryText}
+                        </p>
+                        <Button
+                            onClick={fetchSummary}
+                            disabled={isLoading}
+                            size="sm"
+                            variant="outline"
+                        >
+                            {isLoading ? 'Regenerating...' : 'Regenerate Summary'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    };
+
+    // Calculate content-based sizing
+    const getDialogSize = () => {
+        if (!summary) {
+            return "max-w-lg"; // Increased size for generate button
+        }
+        
+        const contentLength = summary.length;
+        if (contentLength < 500) {
+            return "max-w-xl"; 
+        } else if (contentLength < 1500) {
+            return "max-w-3xl"; 
+        } else {
+            return "max-w-5xl"; 
+        }
+    };
 
     return (
-        <AnimatePresence>
-            {showSummary && (
-                <motion.div
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 320, opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="border-l border-border overflow-hidden bg-background"
-                >
-                    <div className="p-4 border-b border-border">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Sparkles className="h-4 w-4 text-primary" />
-                                <h3 className="font-medium">AI Summary</h3>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setShowSummary(false)}
-                                aria-label="Close summary"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-
-                    <ScrollArea className="h-full p-4">
-                        <div className="space-y-4">
-                            <Card>
-                                <CardContent className="pt-4">
-                                    <h4 className="font-medium mb-2">Key Points</h4>
-                                    <ul className="space-y-1 text-sm list-disc list-inside text-muted-foreground">
-                                        <li>Summarized insights generated using AI for quick review.</li>
-                                        <li>Each point is relevant to the selected content or discussion.</li>
-                                        <li>Click on a point for deeper context (coming soon).</li>
-                                        <li>Summaries are verifiable and timestamped on the blockchain.</li>
-                                    </ul>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardContent className="pt-4">
-                                    <h4 className="font-medium mb-2">Summary Text</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                        This AI-generated summary condenses the conversation to its essential elements,
-                                        allowing for quick understanding and easy sharing. All summaries are securely
-                                        verified and stored for transparency.
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </ScrollArea>
-                </motion.div>
-            )}
-        </AnimatePresence>
+        <Dialog open={showSummary} onOpenChange={setShowSummary}>
+            <DialogContent className={`${getDialogSize()} max-h-[85vh] overflow-hidden`}>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        AI Summary
+                    </DialogTitle>
+                </DialogHeader>
+                
+                <div className="overflow-y-auto max-h-[calc(85vh-8rem)] pr-2">
+                    {renderSummaryContent()}
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }
