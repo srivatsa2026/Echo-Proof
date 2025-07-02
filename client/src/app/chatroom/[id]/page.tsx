@@ -1,5 +1,5 @@
 "use client"
-
+// TWEETNACL: https://github.com/tweetnacl/tweetnacl-js FOR ENCRYPTION AND DECRYPTION OF MESSAGES IN THE DATABASE 
 import { useState, useRef, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
@@ -57,22 +57,9 @@ interface SummaryData {
 const initialMessages: Message[] = []
 const initialParticipants: Participant[] = []
 
-// Mock AI summary (will be replaced with real API in production)
-const mockSummary: SummaryData = {
-  keyPoints: [
-    "Team discussed project requirements and timeline",
-    "Client needs new features implemented by next month",
-    "Current resources may not be sufficient for the deadline",
-    "Additional backend developer needed for the project",
-  ],
-  actionItems: [
-    "Alice to review current resource allocation",
-    "Bob to identify potential backend developers to bring on",
-    "Charlie to break down features into manageable tasks",
-    "Team to meet again next week to finalize the plan",
-  ],
-  nextSteps: "Schedule a meeting with the client to discuss timeline expectations and resource requirements.",
-}
+
+
+const MESSAGE_LIMIT = 15;
 
 export default function ChatroomPage() {
   const router = useRouter()
@@ -107,6 +94,61 @@ export default function ChatroomPage() {
   console.log("the cookies is ", token)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Function to fetch messages from the API (paginated)
+  const fetchMessages = async (fetchOffset = 0, append = false) => {
+    try {
+      setLoadingMore(true);
+      const response = await fetch(`/api/messages?chatroomId=${chatroomId}&limit=${MESSAGE_LIMIT}&offset=${fetchOffset}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+      const data = await response.json();
+      const formattedMessages = data.map((msg: any) => ({
+        id: `msg-${msg.sent_at}-${msg.sender_id}`,
+        sender: {
+          id: msg.sender_id,
+          name: localStorage.getItem('chatUsername') || 'Unknown',
+        },
+        content: msg.message_text,
+        timestamp: new Date(msg.sent_at)
+      }));
+      if (append) {
+        setMessages(prev => [...formattedMessages, ...prev]);
+      } else {
+        setMessages(formattedMessages);
+      }
+      setHasMore(data.length === MESSAGE_LIMIT);
+      setOffset(fetchOffset + data.length);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load message history",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    setMessages([]);
+    setOffset(0);
+    setHasMore(true);
+    fetchMessages(0, false);
+  }, [chatroomId]);
+
+  // Infinite scroll: load more on scroll to top
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollTop === 0 && hasMore && !loadingMore) {
+      fetchMessages(offset, true);
+    }
+  };
 
   // Save username to localStorage
   useEffect(() => {
@@ -114,7 +156,6 @@ export default function ChatroomPage() {
       localStorage.setItem('chatUsername', username)
       const userId = localStorage.getItem("userId");
       setUserId(userId || "unknown-user")
-
     }
   }, [username])
 
@@ -458,9 +499,6 @@ export default function ChatroomPage() {
 
   const generateSummary = () => {
     setIsGeneratingSummary(true)
-
-    // In a real app, you'd call an AI API here
-    // For now, simulate with a delay
     setTimeout(() => {
       setIsGeneratingSummary(false)
       setShowSummary(true)
@@ -657,8 +695,11 @@ export default function ChatroomPage() {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Messages Area */}
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-4" onScroll={handleScroll}>
             <div className="space-y-4 mb-4">
+              {loadingMore && (
+                <div className="flex justify-center items-center py-2 text-xs text-muted-foreground">Loading more...</div>
+              )}
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
                   <Info className="h-10 w-10 text-muted-foreground mb-2" />
@@ -703,8 +744,8 @@ export default function ChatroomPage() {
                       </div>
                       <div
                         className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
                           }`}
                       >
                         {msg.content || ""}
