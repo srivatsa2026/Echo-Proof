@@ -23,7 +23,8 @@ import ShowSummary from "@/components/chatroom/showSummary"
 import { useActiveWallet } from "thirdweb/react"
 import Cookies from "js-cookie"
 import axios from "axios"
-import { useSelector } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import { updateUserProfile } from "@/store/reducers/userSlice"
 
 // Define types for the app
 interface Participant {
@@ -98,6 +99,7 @@ export default function ChatroomPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  const dispatch = useDispatch()
   // Function to fetch messages from the API (paginated)
   const fetchMessages = async (fetchOffset = 0, append = false) => {
     try {
@@ -111,7 +113,7 @@ export default function ChatroomPage() {
         id: `msg-${msg.sent_at}-${msg.sender_id}`,
         sender: {
           id: msg.sender_id,
-          name: localStorage.getItem('chatUsername') || 'Unknown',
+          name: msg.sender_name || (typeof window !== 'undefined' ? localStorage.getItem('chatUsername') : username) || 'Unknown',
         },
         content: msg.message_text,
         timestamp: new Date(msg.sent_at)
@@ -152,11 +154,8 @@ export default function ChatroomPage() {
 
   // Save username to localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('chatUsername', username)
-      const userId = localStorage.getItem("userId");
-      setUserId(userId || "unknown-user")
-    }
+    const userId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
+    setUserId(userId || "unknown-user")
   }, [username])
 
   // Initialize socket connection
@@ -170,7 +169,7 @@ export default function ChatroomPage() {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 3000,
       auth: token || "token"
     },)
 
@@ -480,6 +479,10 @@ export default function ChatroomPage() {
 
     const newUsername = tempUsername.trim()
     setUsername(newUsername)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatUsername', newUsername)
+    }
+    dispatch<any>(updateUserProfile({ name: newUsername, email: undefined, toast }))
     setShowUsernameDialog(false)
 
     toast({

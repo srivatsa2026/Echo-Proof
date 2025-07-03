@@ -40,7 +40,7 @@ export const registerUser = createAsyncThunk(
         }
 
         try {
-            const response = await axios.post("/api/register", {
+            const response = await axios.post("/api/user", {
                 smart_wallet_address: smartWalletAddress,
                 wallet_address: walletAddress,
             });
@@ -75,23 +75,33 @@ export const registerUser = createAsyncThunk(
 export const updateUserProfile = createAsyncThunk(
     "user/updateProfile",
     async (
-        { name, email, toast, smart_wallet_address, wallet_address }: any,
+        { name, email, toast }: { name: string, email?: string, toast: any },
         { rejectWithValue }
     ) => {
         try {
-            const response = await axios.post("/api/update-profile", {
-                name,
-                email,
-                wallet_address,
-                smart_wallet_address,
-            }, { withCredentials: true });
+            if (email) {
 
+                const response = await axios.patch("/api/user", {
+                    name,
+                    email,
+                }, { withCredentials: true });
+
+                return response.data;
+            }
+            else {
+
+                const response = await axios.patch("/api/user", {
+                    name,
+
+                }, { withCredentials: true });
+                return response.data;
+
+            }
             toast({
                 title: "Profile updated",
                 description: "Your profile has been successfully updated.",
             });
 
-            return response.data;
         } catch (error: any) {
             toast({
                 title: "Update failed",
@@ -111,10 +121,7 @@ export const getUserDetails = createAsyncThunk(
         { rejectWithValue }
     ) => {
         try {
-            const response = await axios.post("/api/get-user", {
-                wallet_address,
-                smart_wallet_address,
-            }, { withCredentials: true });
+            const response = await axios.get("/api/user", { withCredentials: true });
             localStorage.setItem("userId", response.data?.user.id)
             console.log("the reponse of the profile is ", response.data.user.id)
 

@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // Fetch user details
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function SettingsPage() {
   }, [user_name, user_email, dispatch])
 
   const updateProfile = async () => {
+    setIsUpdating(true)
     try {
       await dispatch<any>(updateUserProfile({
         name,
@@ -66,12 +68,16 @@ export default function SettingsPage() {
         title: "Profile Updated",
         description: "Your profile details were successfully updated.",
       })
+      setName(user_name)
+      setEmail(user_email)
+      setIsUpdating(false)
     } catch (err) {
       toast({
         title: "Update Failed",
         description: "There was a problem updating your profile.",
         variant: "destructive",
       })
+      setIsUpdating(false)
     }
   }
 
@@ -175,8 +181,15 @@ export default function SettingsPage() {
                       placeholder="Enter your email"
                     />
                   </div>
-                  <Button onClick={updateProfile} className="w-full mt-2">
-                    Update Profile
+                  <Button onClick={updateProfile} className="w-full mt-2" disabled={isUpdating}>
+                    {isUpdating ? (
+                      <span className="flex items-center justify-center">
+                        <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary mr-2" />
+                        Updating...
+                      </span>
+                    ) : (
+                      "Update Profile"
+                    )}
                   </Button>
                 </div>
               </div>
