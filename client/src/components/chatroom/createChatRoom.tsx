@@ -22,6 +22,9 @@ import { createChatroom } from "@/store/reducers/chatroomSlice"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import JoinChatroom from "./joinChatroom"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { Info } from "lucide-react"
 
 interface Props {
     onCreated?: (sessionId: string) => void
@@ -31,12 +34,13 @@ export function CreateChatroomCard({ onCreated }: Props) {
     const { toast } = useToast()
     const router = useRouter()
     const dispatch = useDispatch()
-    const creator_id = useSelector((state: any) => state?.user?.id)
 
     const [open, setOpen] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
-    const [roomName, setRoomName] = useState("")
-    const [purpose, setPurpose] = useState("")
+    const [title, setTitle] = useState("")
+    const [tokenGated, setTokenGated] = useState(false)
+    const [tokenAddress, setTokenAddress] = useState("")
+    const [tokenStandard, setTokenStandard] = useState("")
     const [sessionId, setSessionId] = useState("")
 
     const copyToClipboard = (text: string) => {
@@ -48,10 +52,10 @@ export function CreateChatroomCard({ onCreated }: Props) {
     }
 
     const handleCreateChatroom = async () => {
-        if (!roomName.trim() || !purpose.trim()) {
+        if (!title.trim() || (tokenGated && (!tokenAddress.trim() || !tokenStandard.trim()))) {
             toast({
                 title: "Missing Info",
-                description: "Please fill in both the room name and purpose.",
+                description: tokenGated ? "Please fill in all required fields for a token-gated room." : "Please fill in the room name.",
                 variant: "destructive",
             })
             return
@@ -62,21 +66,25 @@ export function CreateChatroomCard({ onCreated }: Props) {
         try {
             const result = await dispatch<any>(
                 createChatroom({
-                    roomName,
-                    purpose,
-                    creator_id,
+                    title,
+                    tokenGated,
+                    tokenAddress: tokenGated ? tokenAddress : null,
+                    tokenStandard: tokenGated ? tokenStandard : null,
                     toast,
                     router
                 })
             ).unwrap()
             console.log("the result is ", result.chatroom.id)
-            if (result?.sessionId) {
+            if (result?.chatroom?.id) {
                 setSessionId(result.chatroom.id)
                 onCreated?.(result.chatroom.id)
+                router.push(`/chatroom/${result.chatroom.id}`)
             }
 
-            setRoomName("")
-            setPurpose("")
+            setTitle("")
+            setTokenGated(false)
+            setTokenAddress("")
+            setTokenStandard("")
             setOpen(false)
 
         } catch (error: any) {
@@ -115,13 +123,39 @@ export function CreateChatroomCard({ onCreated }: Props) {
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="roomName" className="text-right">Room Name</Label>
-                                    <Input id="roomName" value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="Enter chatroom name" className="col-span-3" />
+                                    <Label htmlFor="title" className="text-right">Room Name</Label>
+                                    <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter chatroom name" className="col-span-3" />
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="purpose" className="text-right">Purpose</Label>
-                                    <Input id="purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="E.g. Team discussion" className="col-span-3" />
+                                    <Label htmlFor="tokenGated" className="text-right flex items-center gap-1">
+                                        Token Gated
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span tabIndex={0} className="cursor-pointer flex items-center">
+                                                    <Info className="h-4 w-4 text-blue-500" />
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="bg-neutral-800 text-white">
+                                                <div className="max-w-xs text-left">
+                                                    <strong>Token Gated</strong> chatrooms require users to own a specific blockchain token (e.g., ERC-20, ERC-721) to join. This enables exclusive access for holders of a certain NFT or token. Set the token address and standard to restrict entry. Only users with the required token in their wallet can participate.
+                                                </div>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <Checkbox id="tokenGated" checked={tokenGated} onCheckedChange={checked => setTokenGated(!!checked)} className="col-span-1" />
                                 </div>
+                                {tokenGated && (
+                                    <>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="tokenAddress" className="text-right">Token Address</Label>
+                                            <Input id="tokenAddress" value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} placeholder="0x..." className="col-span-3" />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="tokenStandard" className="text-right">Token Standard</Label>
+                                            <Input id="tokenStandard" value={tokenStandard} onChange={(e) => setTokenStandard(e.target.value)} placeholder="ERC-20, ERC-721, etc." className="col-span-3" />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             <DialogFooter>
                                 <Button onClick={handleCreateChatroom} disabled={isCreating} className="w-full">
@@ -146,7 +180,7 @@ export function CreateChatroomCard({ onCreated }: Props) {
                 </CardContent>
             </Card>
 
-            <JoinChatroom roomId={sessionId} />
+
         </>
     )
 }

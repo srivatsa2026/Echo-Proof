@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ConnectButton, useAdminWallet } from "thirdweb/react";
+import { ConnectButton } from "thirdweb/react";
 import { client } from "../client";
 import {
     generatePayload,
@@ -12,16 +11,10 @@ import {
 } from "@/actions/auth";
 import { createWallet } from "thirdweb/wallets";
 import { sepolia } from "thirdweb/chains";
-import { useToast } from "@/hooks/use-toast";
-import { useDispatch } from "react-redux";
-import { registerUser } from "@/store/reducers/userSlice";
-
+import { useState } from "react";
 export default function ConnectionButton({ type = "signin" }) {
-    const dispatch = useDispatch();
     const wallets = [createWallet("io.metamask")];
     const router = useRouter();
-    const adminWallet = useAdminWallet();
-    const { toast } = useToast();
 
     return (
         <ConnectButton
@@ -36,17 +29,6 @@ export default function ConnectionButton({ type = "signin" }) {
                     return await isLoggedIn();
                 },
                 getLoginPayload: async ({ address }) => {
-                    if (type === "signup") {
-                        dispatch(
-                            registerUser({
-                                smartWalletAddress: address,
-                                walletAddress: adminWallet?.getAccount()?.address,
-                                toast,
-                                router,
-                            })
-                        );
-                    }
-
                     return generatePayload({ address, chainId: 11155111 });
                 },
                 doLogin: async (params) => {
@@ -55,6 +37,13 @@ export default function ConnectionButton({ type = "signin" }) {
                 },
                 doLogout: async () => {
                     await logout();
+                    // Clear specific items
+                    localStorage.removeItem("userId");
+                    // localStorage.removeItem("userToken"); // if you have other items
+
+                    // OR clear everything (use with caution)
+                    // localStorage.clear();
+
                     router.push("/signin");
                 },
             }}

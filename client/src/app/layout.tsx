@@ -31,6 +31,6 @@ export default function RootLayout({
           </ThirdwebProvider>
         </ReduxProvider>
       </body>
-    </html>
+    </html >
   );
 }

@@ -1,27 +1,16 @@
 'use client'
-import { useState } from "react"
 import { motion } from "framer-motion"
 import WalletButton from "../connection-button"
 import { BlockchainAnimation } from "@/components/motion-animation/node-animation"
 import { Logo } from "@/components/logo/logo"
 import { useActiveWallet } from "thirdweb/react"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
 import { ArrowBigRight } from "lucide-react"
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs"
-import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default function SignInPage() {
-  const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState("signin")
   const activeWalletAddress = useActiveWallet()
   const router = useRouter()
-  const { toast } = useToast()
 
   return (
     <div className="min-h-screen bg-black flex flex-col">
@@ -40,48 +29,30 @@ export default function SignInPage() {
             className="space-y-8"
           >
             <Logo />
-            <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-              <TabsContent value="signin">
-                <div className="space-y-4">
-                  <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
-                    Welcome to <span className="text-[#FF6600]">Echo Proff</span>
-                  </h1>
-                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed ">
-                    Secure, private, decentralized meetings — powered by blockchain and encrypted storage.
-                  </p>
-                </div>
-                <div className="flex items-center space-x-4 mt-2">
-                  <WalletButton type="signin" />
-                </div>
-              </TabsContent>
-              {/* sign up tab ---------------------> */}
-              <TabsContent value="signup">
-                <div className="space-y-4 mb-3">
-                  <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
-                    Join <span className="text-[#FF6600]">Echo Proff</span>
-                  </h1>
-                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
-                    Create your account by registering your wallet address.
-                  </p>
-                </div>
-                <div className="flex items-center space-x-4 mt-4">
-                  <WalletButton type="signup" />
-                </div>
-              </TabsContent>
-            </Tabs>
+            <div className="space-y-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-[#F0F0F0] mb-2 leading-tight">
+                Welcome to <span className="text-[#FF6600]">Echo Proff</span>
+              </h1>
+              <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
+                Secure, private, decentralized meetings — powered by blockchain and encrypted storage.
+              </p>
+            </div>
+            <div className="flex items-center space-x-4 mt-2">
+              <WalletButton />
+            </div>
             {
-              activeWalletAddress && <Link href="/dashboard">
-                <div className="flex flex-row mt-4">
-                  <p className="text-[#C4C4C4] text-base mb-6 max-w-md leading-relaxed">
+              activeWalletAddress && (
+                <Button
+                  variant="default"
+                  onClick={() => router.push("/dashboard")}
+                  className="flex flex-row mt-4 items-center px-4 py-4 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <p className="text-base mb-0 max-w-md leading-relaxed mr-2">
                     Go to dashboard
                   </p>
                   <ArrowBigRight />
-                </div>
-              </Link>
+                </Button>
+              )
             }
           </motion.div>
         </motion.div>

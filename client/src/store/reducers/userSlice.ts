@@ -9,6 +9,7 @@ const initialState: {
     wallet_address: string;
     smart_wallet_address: string;
     userPlan: string;
+    profileImage: string | null;
     loading: boolean;
     error: string | null;
 } = {
@@ -19,6 +20,7 @@ const initialState: {
     wallet_address: "",
     smart_wallet_address: "",
     userPlan: "free",
+    profileImage: null,
     loading: false,
     error: null,
 };
@@ -116,16 +118,14 @@ export const updateUserProfile = createAsyncThunk(
 // 📥 Get user details from Supabase
 export const getUserDetails = createAsyncThunk(
     "user/getUserDetails",
-    async (
-        { smart_wallet_address, wallet_address }: any,
-        { rejectWithValue }
-    ) => {
+    async ({ rejectWithValue }: any) => {
         try {
             const response = await axios.get("/api/user", { withCredentials: true });
-            localStorage.setItem("userId", response.data?.user.id)
-            console.log("the reponse of the profile is ", response.data.user.id)
+            console.log("the get reponsonse in the slice is ", response.data)
+            console.log("the reponse of the profile is ", response.data.userData.id)
+            localStorage.setItem("userId", response.data?.userData.id)
 
-            return response.data;
+            return response.data.userData;
         } catch (error: any) {
             return rejectWithValue(error?.response?.data || "Unknown error");
         }
@@ -146,11 +146,6 @@ const userSlice = createSlice({
         },
         stateLogout: (state) => {
             state.isAuthenticated = false;
-            state.wallet_address = "";
-            state.smart_wallet_address = "";
-            state.name = "Echo-Client";
-            state.email = "echoProof@echo.com";
-            state.userPlan = "free";
         },
     },
     extraReducers: (builder) => {
@@ -195,13 +190,14 @@ const userSlice = createSlice({
             })
             .addCase(getUserDetails.fulfilled, (state, action) => {
                 state.loading = false;
-                console.log("the action payload is ", action.payload.user)
-                state.name = action.payload.user.name || state.name;
-                state.id = action.payload.user.id || action.payload.user.wallet_address
-                state.email = action.payload.user.email || state.email;
-                state.smart_wallet_address = action.payload.user.smart_wallet_address;
-                state.wallet_address = action.payload.user.wallet_address;
-                state.userPlan = action.payload.userPlan || state.userPlan;
+                const user = action.payload;
+                state.id = user.id || "";
+                state.name = user.name || "Echo-Client";
+                state.email = user.email || "echoProof@echo.com";
+                state.smart_wallet_address = user.smartWalletAddress || "";
+                state.wallet_address = user.walletAddress || "";
+                state.userPlan = user.userPlan || "free";
+                state.profileImage = user.profileImage || null;
                 state.isAuthenticated = true;
             })
             .addCase(getUserDetails.rejected, (state, action) => {

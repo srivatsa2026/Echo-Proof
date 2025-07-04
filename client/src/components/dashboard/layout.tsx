@@ -82,7 +82,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       icon: CreditCard,
       current: pathname === "/dashboard/subscription",
     },
-    { name: "Settings", href: "/dashboard/settings", icon: Settings, current: pathname === "/dashboard/settings" },
+    { name: "Profile", href: "/dashboard/profile", icon: User, current: pathname === "/shboard/profile" },
   ]
 
   return (

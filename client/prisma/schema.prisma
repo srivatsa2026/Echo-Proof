@@ -1,0 +1,143 @@
+// Cleaned and optimized Prisma schema for EchoProof
+
+// Generator and datasource
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id             String     @id @default(uuid())
+  walletAddress  String     @unique @db.VarChar(42)
+  smartWalletAddress  String     @unique @db.VarChar(42)
+  name           String     @db.VarChar(100)
+  profileImage   String?
+  userPlan       String     @default("free")
+  createdAt      DateTime   @default(now())
+
+  chatrooms      Chatroom[]
+  videoMeetings  VideoMeeting[]
+  messages       ChatMessage[]
+  participants   MeetingParticipant[]
+  chatroomMemberships ChatroomMember[]
+  subscriptions  Subscription[]
+
+  @@index([walletAddress])
+  @@map("users")
+}
+
+// Chatroom model
+model Chatroom {
+  id             String     @id @default(uuid())
+  title          String     @db.VarChar(255)
+  creator        User       @relation(fields: [creatorId], references: [id])
+  creatorId      String
+  tokenGated     Boolean    @default(false)
+  tokenAddress   String?    @db.VarChar(42)
+  tokenStandard  String?
+  isActive       Boolean    @default(true)
+  blockchainTx   String?
+  createdAt      DateTime   @default(now())
+
+  messages       ChatMessage[]
+  members        ChatroomMember[]
+
+  @@index([creatorId])
+  @@index([tokenAddress])
+  @@map("chatrooms")
+}
+
+// ChatroomMember model
+model ChatroomMember {
+  id          String     @id @default(uuid())
+  chatroom    Chatroom   @relation(fields: [chatroomId], references: [id], onDelete: Cascade)
+  chatroomId  String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  role        String     @default("member") // "admin", "member"
+  joinedAt    DateTime   @default(now())
+  leftAt      DateTime?
+  isActive    Boolean    @default(true)
+
+  @@unique([chatroomId, userId])
+  @@index([chatroomId])
+  @@index([userId])
+  @@index([role])
+  @@map("chatroom_members")
+}
+
+// ChatMessage model
+model ChatMessage {
+  id             String     @id @default(uuid())
+  chatroom       Chatroom   @relation(fields: [chatroomId], references: [id], onDelete: Cascade)
+  chatroomId     String
+  sender         User       @relation(fields: [senderId], references: [id])
+  senderId       String
+  message        String     @db.Text
+  sentAt         DateTime   @default(now())
+
+  @@index([chatroomId, sentAt])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+// VideoMeeting model
+model VideoMeeting {
+  id             String     @id @default(uuid())
+  title          String     @db.VarChar(255)
+  host           User       @relation(fields: [hostId], references: [id])
+  hostId         String
+  startTime      DateTime
+  endTime        DateTime?
+  tokenGated     Boolean    @default(false)
+  tokenAddress   String?    @db.VarChar(42)
+  tokenStandard  String?
+  recordingUrl   String?
+  transcriptUrl  String?
+  blockchainTx   String?
+  createdAt      DateTime   @default(now())
+
+  participants   MeetingParticipant[]
+
+  @@index([hostId])
+  @@index([tokenAddress])
+  @@map("video_meetings")
+}
+
+// MeetingParticipant model
+model MeetingParticipant {
+  id             String     @id @default(uuid())
+  meeting        VideoMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meetingId      String
+  user           User       @relation(fields: [userId], references: [id])
+  userId         String
+  joinedAt       DateTime?
+  leftAt         DateTime?
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+  @@index([userId])
+  @@map("meeting_participants")
+}
+
+// Subscription model
+model Subscription {
+  id             String     @id @default(uuid())
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  plan           String     // "free", "pro"
+  status         String     @default("active")
+  startDate      DateTime
+  endDate        DateTime?
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+
+  @@index([userId])
+  @@map("subscriptions")
+}

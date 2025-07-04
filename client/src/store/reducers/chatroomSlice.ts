@@ -3,26 +3,30 @@ import axios from "axios"
 
 interface ChatroomState {
     id: string
-    roomName: string
-    purpose: string
+    title: string
     creator: string
     members: string[]
     chatrooms: any[]
     loading: boolean
     error: string | null
     active: boolean
+    tokenGated: boolean
+    tokenAddress?: string | null
+    tokenStandard?: string | null
 }
 
 const initialState: ChatroomState = {
     id: "",
-    roomName: "Echo-Room",
-    purpose: "Group discussion Regarding the project",
+    title: "Echo-Room",
     creator: "unknown-id",
     members: [],
     chatrooms: [],
     loading: false,
     error: null,
-    active: false
+    active: false,
+    tokenGated: false,
+    tokenAddress: null,
+    tokenStandard: null
 }
 
 // Async thunk for creating a chatroom
@@ -30,36 +34,34 @@ export const createChatroom = createAsyncThunk(
     "chatroom/create",
     async (
         {
-            roomName,
-            purpose,
-            creator_id,
+            title,
+            tokenGated,
+            tokenAddress,
+            tokenStandard,
             toast,
             router
         }: {
-            roomName: string
-            purpose: string
-            creator_id: string
+            title: string
+            tokenGated: boolean
+            tokenAddress?: string | null
+            tokenStandard?: string | null
             toast: any
             router?: any
         },
         { rejectWithValue }
     ) => {
         try {
-            const response = await axios.post("/api/create-chatroom", {
-                roomName,
-                purpose,
-                creator_id
+            const response = await axios.post("/api/chatrooms", {
+                title,
+                tokenGated,
+                tokenAddress,
+                tokenStandard
             }, { withCredentials: true })
-            console.log("the response from the chat room slice is ", response.data)
             const data = response.data
             toast({
                 title: "Chatroom Created",
-                description: `Room "${roomName}" has been created successfully.`,
+                description: `Room "${title}" has been created successfully.`,
             })
-
-            // Navigate to the newly created chatroom
-            // router.push(`/chatroom/${data.sessionId}`)
-
             return data
         } catch (error: any) {
             toast({
@@ -67,11 +69,23 @@ export const createChatroom = createAsyncThunk(
                 description: error.response?.data?.message || "Failed to create chatroom.",
                 variant: "destructive"
             })
-
             return rejectWithValue(error.response?.data || { message: "Unknown error" })
         }
     }
 )
+
+// Async thunk for fetching all chatrooms for the user
+export const fetchUserChatrooms = createAsyncThunk(
+    "chatroom/fetchUserChatrooms",
+    async (_: void, { rejectWithValue }) => {
+        try {
+            const response = await axios.get("/api/chatrooms", { withCredentials: true });
+            return response.data;
+        } catch (error: any) {
+            return rejectWithValue(error.response?.data || { message: "Failed to fetch chatrooms" });
+        }
+    }
+);
 
 const chatroomSlice = createSlice({
     name: "chatroom",
@@ -84,18 +98,14 @@ const chatroomSlice = createSlice({
                 state.error = null
             })
             .addCase(createChatroom.fulfilled, (state, action) => {
-                console.log("Inside fulfilled case");
-
-                // Check the structure of the payload
-                console.log("Action payload:", action.payload);
-
-                // Proceed with your existing logic
                 state.loading = false;
                 state.id = action.payload.chatroom.id;
-                state.roomName = action.payload.chatroom.name;
-                state.purpose = action.payload.chatroom.purpose;
-                state.active = action.payload.chatroom.active;
-                state.creator = action.payload.chatroom.creator_id;
+                state.title = action.payload.chatroom.title;
+                state.active = action.payload.chatroom.isActive;
+                state.creator = action.payload.chatroom.creatorId;
+                state.tokenGated = action.payload.chatroom.tokenGated;
+                state.tokenAddress = action.payload.chatroom.tokenAddress;
+                state.tokenStandard = action.payload.chatroom.tokenStandard;
                 state.chatrooms.push(action.payload.chatroom);
             })
 
@@ -103,6 +113,19 @@ const chatroomSlice = createSlice({
                 state.loading = false
                 state.error = (action.payload as any)?.message || "Failed to create chatroom"
             })
+
+            .addCase(fetchUserChatrooms.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(fetchUserChatrooms.fulfilled, (state, action) => {
+                state.loading = false;
+                state.chatrooms = action.payload.chatrooms || [];
+            })
+            .addCase(fetchUserChatrooms.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as any)?.message || "Failed to fetch chatrooms";
+            });
     }
 })
 

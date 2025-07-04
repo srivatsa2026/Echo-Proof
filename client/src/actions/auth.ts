@@ -8,7 +8,8 @@ import {
 } from "thirdweb/auth";
 import { privateKeyToAccount } from "thirdweb/wallets";
 import { createThirdwebClient } from "thirdweb";
-import { supabase } from "@/lib/supabase-client";
+
+import { prisma } from "@/lib/db";
 
 // 1. Setup thirdweb client and auth
 const secretKey: string = process.env.SECRET_KEY || "";
@@ -33,7 +34,7 @@ export async function generatePayload(payload: GenerateLoginPayloadParams) {
 	return thirdwebAuth.generatePayload(payload);
 }
 
-// 3. Login and Generate JWT only if user exists in Supabase
+// 3. Login - Check if user exists, if not create one
 export async function login(payload: VerifyLoginPayloadParams) {
 	const verifiedPayload = await thirdwebAuth.verifyPayload(payload);
 
@@ -43,32 +44,39 @@ export async function login(payload: VerifyLoginPayloadParams) {
 
 	const smartWalletAddress = verifiedPayload.payload.address;
 
-	// Supabase check
-	const { data: user, error } = await supabase
-		.from("users")
-		.select("*")
-		.eq("smart_wallet_address", smartWalletAddress)
-		.maybeSingle();
+	try {
+		// Check if user exists
+		let user = await prisma.user.findUnique({
+			where: {
+				smartWalletAddress: smartWalletAddress,
+			},
+		});
 
-	if (error) {
-		console.error("Supabase error:", error.message);
+		// If user doesn't exist, create one
+		if (!user) {
+			user = await prisma.user.create({
+				data: {
+					walletAddress: smartWalletAddress, // Using same address for both fields
+					smartWalletAddress: smartWalletAddress,
+					name: `User ${smartWalletAddress.slice(0, 6)}`, // Default name
+				},
+			});
+		}
+
+		// Generate JWT
+		const jwt = await thirdwebAuth.generateJWT({
+			payload: verifiedPayload.payload,
+		});
+
+		// Store JWT in cookie
+		const c = cookies();
+		c.set("jwt", jwt);
+		console.log("JWT issued and saved in cookie.");
+
+	} catch (error) {
+		console.error("Database error during login:", error);
 		throw new Error("Database error during login.");
 	}
-
-	if (!user) {
-		console.warn("User not found in DB:", smartWalletAddress);
-		throw new Error("User not registered. Please sign up first.");
-	}
-
-	// User exists, generate JWT
-	const jwt = await thirdwebAuth.generateJWT({
-		payload: verifiedPayload.payload,
-	});
-
-	// Store JWT in cookie
-	const c = cookies();
-	c.set("jwt", jwt);
-	console.log("JWT issued and saved in cookie.");
 }
 
 // 4. Check if logged in

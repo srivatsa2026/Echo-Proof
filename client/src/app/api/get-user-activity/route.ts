@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         }
 
         const walletAddress = payload.parsedJWT.sub;
-        console.log("the wallet address of the user is ", walletAddress)
+        // console.log("the wallet address of the user is ", walletAddress)
 
         // Confirm user exists
         const { data: userData, error: userError } = await supabase
@@ -35,14 +35,14 @@ export async function GET(req: NextRequest) {
                 { status: 404 }
             );
         }
-        console.log("the user data is ", userData)
+        // console.log("the user data is ", userData)
         // Fetch chatrooms
         const { data: chatrooms, error: chatroomError } = await supabase
             .from("chatrooms")
             .select("*")
             .eq("creator_id", userData.id)
             .eq("active", true);
-        console.log("the chatrooms ", chatrooms)
+        // console.log("the chatrooms ", chatrooms)
 
         if (chatroomError) {
             return NextResponse.json(
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
             .select("*")
             .eq("creator_id", userData.id)
             .eq("active", true);
-        console.log("the videomeeting", videoMeetings)
+        // console.log("the videomeeting", videoMeetings)
         // if (meetingError) {
         //     return NextResponse.json(
         //         { message: "Failed to fetch video meetings.", error: meetingError.message },
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
             { status: 200 }
         );
     } catch (err: any) {
-        console.error("Error in get-user-activity POST route:", err);
+        // console.error("Error in get-user-activity POST route:", err);
         return NextResponse.json(
             { message: "Internal server error", error: err.message },
             { status: 500 }

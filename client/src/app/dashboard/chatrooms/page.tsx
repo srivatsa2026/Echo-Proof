@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,49 +16,43 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { MessageSquare, Plus, Search, Users, Clock } from "lucide-react"
+import { MessageSquare, Plus, Search, Users, Clock, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
-
-// Mock data for chatrooms
-const chatrooms = [
-  {
-    id: "chat-123abc",
-    name: "Project Alpha Discussion",
-    participants: 5,
-    lastActive: new Date(Date.now() - 3600000), // 1 hour ago
-    messages: 24,
-  },
-  {
-    id: "chat-456def",
-    name: "Marketing Team",
-    participants: 8,
-    lastActive: new Date(Date.now() - 86400000), // 1 day ago
-    messages: 128,
-  },
-  {
-    id: "chat-789ghi",
-    name: "Design Feedback",
-    participants: 3,
-    lastActive: new Date(Date.now() - 172800000), // 2 days ago
-    messages: 56,
-  },
-  {
-    id: "chat-101jkl",
-    name: "Customer Support",
-    participants: 12,
-    lastActive: new Date(Date.now() - 259200000), // 3 days ago
-    messages: 312,
-  },
-]
+import { useDispatch, useSelector } from "react-redux"
+import { fetchUserChatrooms } from "@/store/reducers/chatroomSlice"
+import { getUserDetails } from "@/store/reducers/userSlice"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 export default function ChatroomsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [chatroomName, setChatroomName] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const { toast } = useToast()
+  const userId = useSelector((state: any) => state.user.id);
+  const dispatch = useDispatch()
+  const [activeTab, setActiveTab] = useState("all")
 
-  const filteredChatrooms = chatrooms.filter((room) => room.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const { chatrooms, loading, error } = useSelector((state: any) => state.chatroom)
+
+  useEffect(() => {
+    dispatch(fetchUserChatrooms() as any)
+    dispatch(getUserDetails as any)
+  }, [dispatch])
+
+  // Filtering logic
+  const adminChatrooms = chatrooms.filter((room: any) => room.creatorId === userId)
+  const memberChatrooms = chatrooms.filter((room: any) => room.creatorId !== userId && room.members?.some((m: any) => m.userId === userId))
+
+  const getFilteredChatrooms = () => {
+    if (activeTab === "admin") return adminChatrooms
+    if (activeTab === "member") return memberChatrooms
+    return chatrooms
+  }
+
+  const filteredChatrooms = getFilteredChatrooms().filter((room: any) =>
+    room.title?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const createChatroom = () => {
     if (!chatroomName) return
@@ -117,6 +111,14 @@ export default function ChatroomsPage() {
         </Dialog>
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="admin">Admin</TabsTrigger>
+          <TabsTrigger value="member">Member</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -128,7 +130,15 @@ export default function ChatroomsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredChatrooms.map((chatroom, index) => (
+        {loading ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary/20 mb-4" />
+            <span className="text-lg font-medium text-primary">Loading your chatrooms...</span>
+            <span className="text-muted-foreground text-sm mt-1">Please wait while we fetch your rooms.</span>
+          </div>
+        ) : error ? (
+          <div className="col-span-full text-center text-red-500 py-8">{error}</div>
+        ) : filteredChatrooms.map((chatroom: any, index: number) => (
           <motion.div
             key={chatroom.id}
             initial={{ opacity: 0, y: 20 }}
@@ -137,21 +147,21 @@ export default function ChatroomsPage() {
           >
             <Card className="overflow-hidden">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">{chatroom.name}</CardTitle>
+                <CardTitle className="text-lg">{chatroom.title}</CardTitle>
                 <CardDescription className="flex items-center">
                   <Users className="h-3 w-3 mr-1" />
-                  {chatroom.participants} participants
+                  {chatroom.members?.length || 1} participants
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex justify-between items-center text-sm text-muted-foreground mb-4">
                   <div className="flex items-center">
                     <MessageSquare className="h-3 w-3 mr-1" />
-                    {chatroom.messages} messages
+                    {chatroom._count?.messages ?? 0} messages
                   </div>
                   <div className="flex items-center">
                     <Clock className="h-3 w-3 mr-1" />
-                    Last active {format(chatroom.lastActive, "PPP")}
+                    Last active {chatroom.messages?.[0]?.sentAt ? format(new Date(chatroom.messages[0].sentAt), "PPP") : "N/A"}
                   </div>
                 </div>
                 <Button asChild className="w-full">

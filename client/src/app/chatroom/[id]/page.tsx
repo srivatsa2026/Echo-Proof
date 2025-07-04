@@ -24,7 +24,8 @@ import { useActiveWallet } from "thirdweb/react"
 import Cookies from "js-cookie"
 import axios from "axios"
 import { useDispatch, useSelector } from "react-redux"
-import { updateUserProfile } from "@/store/reducers/userSlice"
+import { updateUserProfile, getUserDetails } from "@/store/reducers/userSlice"
+
 
 // Define types for the app
 interface Participant {
@@ -66,8 +67,16 @@ export default function ChatroomPage() {
   const router = useRouter()
   const params = useParams()
   const chatroomId = params.id as string
+  // Get chatroom title from Redux state
+  const chatroomTitle = useSelector((state: any) => {
+    const found = state.chatroom.chatrooms.find((c: any) => c.id === chatroomId);
+    return found ? found.title : "Chatroom";
+  });
   const smart_wallet_address = useActiveWallet()?.getAccount()?.address
   const wallet_address = useActiveWallet()?.getAdminAccount?.()?.address
+  const userId = useSelector((state: any) => state.user.id)
+
+
   // State management
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -77,14 +86,18 @@ export default function ChatroomPage() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
-  const [userId, setUserId] = useState("")
+
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
-  const [username, setUsername] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('chatUsername') || `User-${Math.floor(Math.random() * 10000)}`
-    }
-    return `User-${Math.floor(Math.random() * 10000)}`
-  })
+  // const [username, setUsername] = useState(() => {
+  //   if (typeof window !== 'undefined') {
+  //     return localStorage.getItem('chatUsername') || `User-${Math.floor(Math.random() * 10000)}`
+  //   }
+  //   return `User-${Math.floor(Math.random() * 10000)}`
+  // })
+  const randomUsername = `User-${Math.floor(Math.random() * 10000)}`
+  const usernameFromState = useSelector((state: any) => state.user.name)
+  console.log("the user name from the state is ", usernameFromState)
+  const [username, setUsername] = useState(usernameFromState || randomUsername)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
@@ -110,13 +123,15 @@ export default function ChatroomPage() {
       }
       const data = await response.json();
       const formattedMessages = data.map((msg: any) => ({
-        id: `msg-${msg.sent_at}-${msg.sender_id}`,
-        sender: {
+        id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
+        sender: msg.sender || {
           id: msg.sender_id,
-          name: msg.sender_name || (typeof window !== 'undefined' ? localStorage.getItem('chatUsername') : username) || 'Unknown',
+          name: msg.sender_name,
+          profileImage: msg.sender_profileImage,
+          smartWalletAddress: msg.sender_smartWalletAddress
         },
-        content: msg.message_text,
-        timestamp: new Date(msg.sent_at)
+        content: msg.message || msg.message_text,
+        timestamp: new Date(msg.sentAt || msg.sent_at)
       }));
       if (append) {
         setMessages(prev => [...formattedMessages, ...prev]);
@@ -143,20 +158,19 @@ export default function ChatroomPage() {
     setOffset(0);
     setHasMore(true);
     fetchMessages(0, false);
+    dispatch<any>(getUserDetails)
   }, [chatroomId]);
 
-  // Infinite scroll: load more on scroll to top
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (e.currentTarget.scrollTop === 0 && hasMore && !loadingMore) {
       fetchMessages(offset, true);
     }
   };
 
-  // Save username to localStorage
-  useEffect(() => {
-    const userId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
-    setUserId(userId || "unknown-user")
-  }, [username])
+  // useEffect(() => {
+  //   const userId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
+  //   setUserId(userId || "unknown-user")
+  // }, [username])
 
   // Initialize socket connection
   useEffect(() => {
@@ -274,7 +288,7 @@ export default function ChatroomPage() {
       if (!currentUserExists) {
         updatedParticipants.push({
           id: newSocket.id || "unknown-id",
-          name: username,
+          name: username || "unknown",
           status: "online",
           isCurrentUser: true
         })
@@ -416,7 +430,7 @@ export default function ChatroomPage() {
       id: `msg-${Date.now()}-local`,
       sender: {
         id: userId || "unknown-id",
-        name: username,
+        name: username || "unknown",
         smart_wallet_address: smart_wallet_address,
         wallet_address: wallet_address
       },
@@ -607,7 +621,7 @@ export default function ChatroomPage() {
             </Button>
 
             <div>
-              <h1 className="text-lg font-semibold">Chatroom</h1>
+              <h1 className="text-lg font-semibold">{chatroomTitle}</h1>
               <div className="flex items-center text-sm text-muted-foreground">
                 <span className="font-mono">{chatroomId}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={copyRoomId}>
@@ -701,9 +715,65 @@ export default function ChatroomPage() {
           <ScrollArea className="flex-1 p-4" onScroll={handleScroll}>
             <div className="space-y-4 mb-4">
               {loadingMore && (
-                <div className="flex justify-center items-center py-2 text-xs text-muted-foreground">Loading more...</div>
+                <div className="flex flex-col items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary/20 mb-2" />
+                  <span className="text-sm text-primary font-medium">Loading more messages...</span>
+                  <span className="text-xs text-muted-foreground mt-1">Fetching previous chat history.</span>
+                </div>
               )}
-              {messages.length === 0 ? (
+              {messages.length > 0 ? (
+                <>
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
+                    >
+                      {msg.sender?.id !== userId && (
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback>
+                            {msg.sender?.name
+                              ? msg.sender.name.charAt(0).toUpperCase()
+                              : "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div
+                        className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-muted-foreground">
+                            {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {msg.timestamp ? formatTime(msg.timestamp) : ""}
+                          </span>
+                          {msg.pending && (
+                            <span className="text-xs text-muted-foreground italic">
+                              sending...
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"}`}
+                        >
+                          {msg.content || ""}
+                        </div>
+                      </div>
+                      {msg.sender?.id === userId && (
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback>
+                            {msg.sender?.name
+                              ? msg.sender.name.charAt(0).toUpperCase()
+                              : "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ))}
+                </>
+              ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
                   <Info className="h-10 w-10 text-muted-foreground mb-2" />
                   <h3 className="font-medium">Welcome to the chatroom!</h3>
@@ -711,61 +781,6 @@ export default function ChatroomPage() {
                     Start chatting or share this room ID with others to invite them.
                   </p>
                 </div>
-              ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"
-                      }`}
-                  >
-                    {msg.sender?.id !== userId && (
-                      <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarFallback>
-                          {msg.sender?.name
-                            ? msg.sender.name.charAt(0).toUpperCase()
-                            : "U"
-                          }
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div
-                      className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"
-                        }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-muted-foreground">
-                          {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {msg.timestamp ? formatTime(msg.timestamp) : ""}
-                        </span>
-                        {msg.pending && (
-                          <span className="text-xs text-muted-foreground italic">
-                            sending...
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                          }`}
-                      >
-                        {msg.content || ""}
-                      </div>
-                    </div>
-                    {msg.sender?.id === userId && (
-                      <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarFallback>
-                          {msg.sender?.name
-                            ? msg.sender.name.charAt(0).toUpperCase()
-                            : "U"
-                          }
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-                ))
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -879,10 +894,11 @@ export default function ChatroomPage() {
                         </div>
                       </div>
                       <div className="flex items-center">
-                        <span className={`h-2 w-2 rounded-full ${participant.status === "online"
-                          ? "bg-green-500"
-                          : "bg-amber-500"
-                          }`} />
+                        <span className={
+                          `h-2 w-2 rounded-full ${participant.status === "online"
+                            ? "bg-green-500"
+                            : "bg-amber-500"}`
+                        } />
                       </div>
                     </div>
                   ))}

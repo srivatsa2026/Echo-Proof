@@ -28,8 +28,8 @@ import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
 import { useActiveWallet } from "thirdweb/react"
 import { useDispatch } from "react-redux"
 import UserActivity from "@/components/dashboard/userActivity"
+import JoinChatroom from "@/components/chatroom/joinChatroom"
 
-// Mock data for upcoming meetings
 const upcomingMeetings = [
   {
     id: "meet-123",
@@ -56,6 +56,7 @@ const upcomingMeetings = [
 
 export default function DashboardPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
+  const [loading, setLoading] = useState(false)
   const [isCreatingChatroom, setIsCreatingChatroom] = useState(false)
   const [isCreatingMeeting, setIsCreatingMeeting] = useState(false)
   const [isScheduling, setIsScheduling] = useState(false)
@@ -67,12 +68,7 @@ export default function DashboardPage() {
   const { toast } = useToast()
 
 
-  // useEffect(() => {
-  //   dispatch(stateLogin({
-  //     wallet_address: activeWallet?.getAccount()?.address,
-  //     smart_wallet_address: activeWallet?.getAdminAccount?.()?.address
-  //   }))
-  // }, [])
+
 
 
   const createMeeting = () => {
@@ -168,6 +164,9 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <JoinChatroom />
+
         {/* the below commented card is for the meeting scheduling */}
         {/* <Card>
           <CardHeader className="pb-3">
@@ -318,7 +317,7 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <UserActivity />
+      {/* <UserActivity /> */}
     </div>
   )
 }

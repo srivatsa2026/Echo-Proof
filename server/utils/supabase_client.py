@@ -12,8 +12,8 @@ key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 
-print(f"URL: {url}")
-print(f"Key: {key}")
+# print(f"URL: {url}")
+# print(f"Key: {key}")
 
 def get_supabase_client() -> Client:
     """ Returns the Supabase client."""
