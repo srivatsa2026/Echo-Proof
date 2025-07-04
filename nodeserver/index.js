@@ -1,0 +1,510 @@
+const express = require('express');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+require('dotenv').config();
+const { neon } = require('@neondatabase/serverless');
+
+// Configure logging
+const winston = require('winston');
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.printf(({ timestamp, level, message }) => {
+            return `${timestamp} [${level.toUpperCase()}]: ${message}`;
+        })
+    ),
+    transports: [
+        new winston.transports.Console()
+    ]
+});
+
+// Create Express app
+const app = express();
+const server = createServer(app);
+
+// Configure CORS
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+}));
+
+// Add middleware to parse JSON
+app.use(express.json());
+
+// Create Socket.IO server with more explicit configuration
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    allowEIO3: true,
+    transports: ['websocket', 'polling']
+});
+
+// In-memory storage
+const rooms = {};
+const users = {};
+const roomMessages = {};
+
+// Database connection using Neon serverless
+const sql = neon(process.env.DATABASE_URL);
+
+// Test database connection
+async function testDatabaseConnection() {
+    try {
+        const result = await sql`SELECT version()`;
+        logger.info('Database connected successfully:', result[0].version);
+    } catch (error) {
+        logger.error('Error connecting to database:', error);
+    }
+}
+
+// Test the connection on startup
+testDatabaseConnection();
+
+// Routes
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Chat Server is running!',
+        timestamp: new Date().toISOString(),
+        connectedUsers: Object.keys(users).length,
+        activeRooms: Object.keys(rooms).length
+    });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Helper function to get room participants
+function getRoomParticipants(roomId) {
+    const participants = [];
+    if (rooms[roomId]) {
+        for (const uid of rooms[roomId]) {
+            if (users[uid]) {
+                participants.push({
+                    id: uid,
+                    name: users[uid].name,
+                    status: users[uid].status,
+                    isCurrentUser: false
+                });
+            }
+        }
+    }
+    return participants;
+}
+
+// Add connection event logging
+io.engine.on("connection_error", (err) => {
+    logger.error("Socket.IO connection error:", err.req);
+    logger.error("Error code:", err.code);
+    logger.error("Error message:", err.message);
+    logger.error("Error context:", err.context);
+});
+
+// Socket.IO event handlers
+io.on('connection', (socket) => {
+    const userId = socket.id;
+    logger.info(`🔌 Client connected: ${userId}`);
+    logger.info(`🔌 Total connected clients: ${io.engine.clientsCount}`);
+
+    // Generate a unique user ID and store user info
+    users[userId] = {
+        sid: userId,
+        name: `User-${uuidv4().substring(0, 8)}`,
+        rooms: [],
+        status: 'online'
+    };
+
+    // Send connection confirmation
+    socket.emit('connection_status', {
+        status: 'connected',
+        message: 'Connected to the chat server. You can now join a room.',
+        userId: userId,
+        serverTime: new Date().toISOString()
+    });
+
+    logger.info(`✅ User ${userId} registered successfully`);
+
+    // Handle client disconnection
+    socket.on('disconnect', (reason) => {
+        logger.info(`🔌 Client disconnected: ${userId}, reason: ${reason}`);
+        logger.info(`🔌 Total connected clients: ${io.engine.clientsCount}`);
+
+        // Remove user from all rooms they were in
+        if (users[userId]) {
+            for (const roomId of users[userId].rooms) {
+                if (rooms[roomId] && rooms[roomId].includes(userId)) {
+                    rooms[roomId] = rooms[roomId].filter(id => id !== userId);
+                    
+                    // Get updated participants
+                    const participants = getRoomParticipants(roomId);
+                    
+                    // Notify others in the room
+                    socket.to(roomId).emit('user_left', {
+                        message: `${users[userId].name} has left the room.`,
+                        userId: userId,
+                        username: users[userId].name,
+                        participants: participants
+                    });
+                }
+            }
+            
+            // Remove user from users dictionary
+            delete users[userId];
+        }
+    });
+
+    // Handle connection errors
+    socket.on('connect_error', (error) => {
+        logger.error(`Connection error for ${userId}:`, error);
+    });
+
+    // Handle ping/pong for connection testing
+    socket.on('ping', () => {
+        logger.info(`📡 Ping received from ${userId}`);
+        socket.emit('pong', { timestamp: new Date().toISOString() });
+    });
+
+    // Handle joining a room
+    socket.on('join', (data) => {
+        logger.info(`📥 Join request received from ${userId}:`, data);
+        
+        const roomId = data.room;
+        const userName = data.username || users[userId]?.name || 'Unknown User';
+
+        if (!roomId) {
+            socket.emit('error', { message: 'Room ID is required.' });
+            return;
+        }
+
+        logger.info(`User ${userId} (${userName}) attempting to join room: ${roomId}`);
+
+        // Update user info
+        if (users[userId]) {
+            users[userId].name = userName;
+            users[userId].status = 'online';
+            if (!users[userId].rooms.includes(roomId)) {
+                users[userId].rooms.push(roomId);
+            }
+        }
+
+        // Join the room
+        socket.join(roomId);
+
+        // Track the participants in the room
+        if (!rooms[roomId]) {
+            rooms[roomId] = [];
+        }
+        if (!rooms[roomId].includes(userId)) {
+            rooms[roomId].push(userId);
+        }
+
+        // Create room history if it doesn't exist
+        if (!roomMessages[roomId]) {
+            roomMessages[roomId] = [];
+        }
+
+        // Get current participants
+        const participants = getRoomParticipants(roomId);
+
+        // Send a join confirmation to the user who joined
+        socket.emit('join_success', {
+            message: `You have joined the room: ${roomId}`,
+            roomId: roomId,
+            participants: participants,
+            history: roomMessages[roomId] || []
+        });
+
+        // Broadcast to other clients in the room
+        socket.to(roomId).emit('user_joined', {
+            message: `${userName} has joined the room!`,
+            username: userName,
+            userId: userId,
+            participants: participants
+        });
+
+        logger.info(`✅ User ${userId} (${userName}) successfully joined room: ${roomId}`);
+    });
+
+    // Handle leaving a room
+    socket.on('leave', (data) => {
+        logger.info(`📤 Leave request received from ${userId}:`, data);
+        
+        const roomId = data.room;
+
+        if (!roomId) {
+            socket.emit('error', { message: 'Room ID is required.' });
+            return;
+        }
+
+        // Remove room from user's list
+        if (users[userId] && users[userId].rooms.includes(roomId)) {
+            users[userId].rooms = users[userId].rooms.filter(id => id !== roomId);
+        }
+
+        // Remove user from room's participants
+        if (rooms[roomId] && rooms[roomId].includes(userId)) {
+            rooms[roomId] = rooms[roomId].filter(id => id !== userId);
+            
+            // If room is empty, clean up
+            if (rooms[roomId].length === 0) {
+                delete rooms[roomId];
+                if (roomMessages[roomId]) {
+                    delete roomMessages[roomId];
+                }
+            }
+        }
+
+        // Leave the socket.io room
+        socket.leave(roomId);
+
+        // Get updated participants
+        const participants = getRoomParticipants(roomId);
+
+        // Notify the user who left
+        socket.emit('leave_success', {
+            message: `You have left the room: ${roomId}`,
+            roomId: roomId
+        });
+
+        // Notify others in the room
+        if (users[userId]) {
+            socket.to(roomId).emit('user_left', {
+                message: `${users[userId].name} has left the room.`,
+                userId: userId,
+                username: users[userId].name,
+                participants: participants
+            });
+        }
+
+        logger.info(`✅ User ${userId} left room: ${roomId}`);
+    });
+
+    // Handle incoming messages
+    socket.on('message', async (data) => {
+        logger.info(`📩 Message received from ${userId}:`, data);
+        
+        const userDbId = data.userDbId;
+        const smartWalletAddress = data.smart_wallet_address;
+        const roomId = data.room;
+        const messageText = data.message;
+        const userName = data.username || users[userId]?.name || 'Unknown User';
+        const timestamp = new Date().toISOString();
+
+        if (!roomId || !messageText) {
+            socket.emit('error', { message: 'Room ID and message are required.' });
+            return;
+        }
+
+        // Check if room exists
+        if (!rooms[roomId]) {
+            socket.emit('error', { message: 'Room does not exist or you are not in this room.' });
+            return;
+        }
+
+        // Check if user is in the room
+        if (!rooms[roomId].includes(userId)) {
+            socket.emit('error', { message: 'You are not in this room.' });
+            return;
+        }
+
+        logger.info(`📩 Processing message in room ${roomId} from ${userName}: ${messageText}`);
+
+        // Create message object
+        const messageObj = {
+            id: `msg-${timestamp}-${userId}`,
+            sender: {
+                id: userId,
+                name: userName
+            },
+            content: messageText,
+            timestamp: timestamp
+        };
+
+        // Store message in history
+        if (roomMessages[roomId]) {
+            roomMessages[roomId].push(messageObj);
+        }
+
+        // Broadcast the message to everyone in the room EXCEPT the sender
+        socket.to(roomId).emit('message_received', messageObj);
+
+        // Database insertion with better error handling and debugging
+        try {
+            logger.info('Inserting message into database...');
+
+            // Log the exact values being inserted
+            logger.info(`Inserting: room_id=${roomId}, userDbId=${userDbId}, message=${messageText}, timestamp=${timestamp}`);
+
+            // Insert the message using Neon's serverless client
+            const messageId = uuidv4();
+            const result = await sql`
+                INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "sentAt") 
+                VALUES (${messageId}, ${roomId}, ${userDbId}, ${messageText}, ${timestamp})
+            `;
+
+            logger.info(`✅ Message inserted successfully`);
+
+            // Verify the insert by querying back
+            const verifyResult = await sql`
+                SELECT COUNT(*) as count FROM chat_messages 
+                WHERE "chatroomId" = ${roomId} AND "senderId" = ${userDbId} AND message = ${messageText}
+            `;
+            const count = verifyResult[0].count;
+            logger.info(`Verification: Found ${count} matching records in database`);
+
+            // Also get the total count in the table
+            const totalResult = await sql`SELECT COUNT(*) as count FROM chat_messages`;
+            const totalCount = totalResult[0].count;
+            logger.info(`Total messages in chat_messages table: ${totalCount}`);
+
+        } catch (error) {
+            logger.error(`❌ Database error: ${error.message}`);
+        }
+
+        // Send confirmation to the sender
+        socket.emit('message_sent', messageObj);
+
+        logger.info(`✅ Message processed successfully`);
+    });
+
+    // Get room participants
+    socket.on('get_participants', (data) => {
+        logger.info(`📋 Participants request from ${userId}:`, data);
+        
+        const roomId = data.room;
+
+        if (!roomId) {
+            socket.emit('error', { message: 'Room ID is required.' });
+            return;
+        }
+
+        const participants = getRoomParticipants(roomId);
+
+        socket.emit('participants_list', {
+            room: roomId,
+            participants: participants
+        });
+    });
+
+    // Get message history for a room
+    socket.on('get_history', async (data) => {
+        logger.info(`📚 History request from ${userId}:`, data);
+        
+        const roomId = data.room;
+        
+        if (!roomId) {
+            socket.emit('error', { message: 'Room ID is required.' });
+            return;
+        }
+
+        let history = [];
+        
+        try {
+            const result = await sql`
+                SELECT "senderId", message, "sentAt" 
+                FROM chat_messages 
+                WHERE "chatroomId" = ${roomId} 
+                ORDER BY "sentAt" ASC
+            `;
+            
+            history = result.map(row => ({
+                sender_id: row.senderId,
+                content: row.message,
+                timestamp: row.sentAt instanceof Date ? row.sentAt.toISOString() : row.sentAt.toString()
+            }));
+            
+            logger.info(`✅ Retrieved ${history.length} messages for room ${roomId}`);
+            
+        } catch (error) {
+            logger.error(`❌ Error fetching message history from database: ${error.message}`);
+        }
+
+        socket.emit('history', {
+            room: roomId,
+            messages: history
+        });
+    });
+
+    // Update user status
+    socket.on('update_status', (data) => {
+        logger.info(`🔄 Status update from ${userId}:`, data);
+        
+        const status = data.status;
+
+        if (!status || !['online', 'away', 'busy'].includes(status)) {
+            socket.emit('error', { message: 'Valid status is required (online, away, busy).' });
+            return;
+        }
+
+        if (users[userId]) {
+            const oldStatus = users[userId].status;
+            users[userId].status = status;
+
+            // Notify all rooms the user is in
+            for (const roomId of users[userId].rooms) {
+                const participants = getRoomParticipants(roomId);
+                io.to(roomId).emit('status_updated', {
+                    userId: userId,
+                    username: users[userId].name,
+                    oldStatus: oldStatus,
+                    newStatus: status,
+                    participants: participants
+                });
+            }
+
+            logger.info(`✅ Status updated for ${userId}: ${oldStatus} -> ${status}`);
+        }
+    });
+
+    // Handle any other events for debugging
+    socket.onAny((event, ...args) => {
+        logger.info(`🔍 Event '${event}' received from ${userId}:`, args);
+    });
+});
+
+// Start the server
+const PORT = process.env.PORT || 5050;
+server.listen(PORT, '0.0.0.0', () => {
+    logger.info(`🚀 Chat server started at http://localhost:${PORT}`);
+    logger.info(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.info(`🌐 CORS enabled for all origins`);
+    logger.info(`🔌 Socket.IO transports: websocket, polling`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    logger.info('Shutting down server...');
+    server.close(() => {
+        logger.info('Server closed');
+        process.exit(0);
+    });
+});
+
+process.on('SIGTERM', () => {
+    logger.info('Shutting down server...');
+    server.close(() => {
+        logger.info('Server closed');
+        process.exit(0);
+    });
+});
+
+// Error handling
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});

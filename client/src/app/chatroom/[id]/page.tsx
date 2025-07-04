@@ -175,25 +175,30 @@ export default function ChatroomPage() {
   // Initialize socket connection
   useEffect(() => {
     const SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050"
+    console.log("Attempting to connect to:", SERVER_URL)
     setConnectionStatus("connecting")
 
     // Connect to the Socket.IO server
     const newSocket = io(SERVER_URL, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // Allow both transports
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 3000,
-      auth: token || "token"
-    },)
+      timeout: 10000, // Add timeout
+      forceNew: true, // Force new connection
+      // Remove auth for now - server doesn't handle it
+      // auth: token || "token"
+    })
 
     // Set up event listeners
     newSocket.on("connect", () => {
-      console.log("Connected to server with ID:", newSocket.id)
+      console.log("✅ Connected to server with ID:", newSocket.id)
       setConnectionStatus("connected")
       setIsLoading(false)
 
       // Join the chatroom
+      console.log("🚪 Joining room:", chatroomId, "as", username)
       newSocket.emit("join", {
         room: chatroomId,
         username: username
@@ -205,8 +210,10 @@ export default function ChatroomPage() {
       })
     })
 
-    newSocket.on("connect_error", (err) => {
-      console.error("Connection error:", err)
+    newSocket.on("connect_error", (err:any) => {
+      console.error("❌ Connection error:", err)
+      console.error("Error type:", err.type)
+      console.error("Error description:", err.description)
       setConnectionStatus("disconnected")
       setIsLoading(false)
       setError("Failed to connect to the chat server. Please try again later.")
@@ -214,13 +221,13 @@ export default function ChatroomPage() {
 
       toast({
         title: "Connection Error",
-        description: "Failed to connect to the chat server. Please try again.",
+        description: `Failed to connect: ${err.message || err.description || 'Unknown error'}`,
         variant: "destructive",
       })
     })
 
     newSocket.on("disconnect", (reason) => {
-      console.log("Disconnected from server, reason:", reason)
+      console.log("❌ Disconnected from server, reason:", reason)
       setConnectionStatus("disconnected")
 
       toast({
@@ -233,7 +240,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("reconnect", (attemptNumber: number) => {
-      console.log("Reconnected after", attemptNumber, "attempts")
+      console.log("🔄 Reconnected after", attemptNumber, "attempts")
       setConnectionStatus("connected")
 
       toast({
@@ -249,7 +256,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("reconnect_failed", () => {
-      console.error("Failed to reconnect")
+      console.error("❌ Failed to reconnect")
       setError("Failed to reconnect to the server. Please refresh the page.")
       setShowError(true)
 
@@ -261,12 +268,17 @@ export default function ChatroomPage() {
     })
 
     // Socket event handlers
-    newSocket.on("connection_status", (data: { userId: string }) => {
-      console.log("Connection status:", data)
+    newSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
+      console.log("📡 Connection status:", data)
+      
+      // Additional confirmation that we're connected
+      if (data.status === 'connected') {
+        setConnectionStatus("connected")
+      }
     })
 
     newSocket.on("error", (data: { message: string }) => {
-      console.error("Server error:", data.message)
+      console.error("⚠️ Server error:", data.message)
       toast({
         title: "Error",
         description: data.message,
@@ -274,8 +286,8 @@ export default function ChatroomPage() {
       })
     })
 
-    newSocket.on("join_success", (data: { participants: Participant[], history?: any[] }) => {
-      console.log("Join success:", data)
+    newSocket.on("join_success", (data: { participants: Participant[], history?: any[], roomId: string }) => {
+      console.log("✅ Join success:", data)
 
       // Set participants list (mark current user)
       const updatedParticipants = data.participants.map((participant: Participant) => ({
@@ -298,10 +310,12 @@ export default function ChatroomPage() {
 
       // Load message history if available
       if (data.history && Array.isArray(data.history)) {
-        setMessages(data.history.map((msg: any) => ({
+        const historyMessages = data.history.map((msg: any) => ({
           ...msg,
           timestamp: new Date(msg.timestamp)
-        })))
+        }))
+        console.log("📚 Loading", historyMessages.length, "messages from history")
+        setMessages(historyMessages)
       }
 
       toast({
@@ -311,7 +325,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("user_joined", (data: { username: string, participants: Participant[] }) => {
-      console.log("User joined:", data)
+      console.log("👤 User joined:", data)
 
       // Update participants list
       if (data.participants) {
@@ -330,7 +344,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("user_left", (data: { username: string, participants: Participant[] }) => {
-      console.log("User left:", data)
+      console.log("👤 User left:", data)
 
       // Update participants list
       if (data.participants) {
@@ -349,7 +363,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("leave_success", (data: any) => {
-      console.log("Leave success:", data)
+      console.log("🚪 Leave success:", data)
       toast({
         title: "Left Room",
         description: `You have left the chatroom.`,
@@ -357,7 +371,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("message_received", (message: any) => {
-      console.log("Message received:", message)
+      console.log("📨 Message received:", message)
 
       // Add received message to messages
       setMessages(prev => [
@@ -370,12 +384,18 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("message_sent", (message: any) => {
-      console.log("Message sent confirmation:", message)
-      // The message is already added to the UI, nothing to do here
+      console.log("✅ Message sent confirmation:", message)
+      
+      // Remove pending status from the message
+      setMessages(prev => prev.map(msg => 
+        msg.id === `msg-${new Date(message.timestamp).getTime()}-local` 
+          ? { ...msg, pending: false, id: message.id }
+          : msg
+      ))
     })
 
     newSocket.on("participants_list", (data: { participants: Participant[] }) => {
-      console.log("Participants list:", data)
+      console.log("👥 Participants list:", data)
 
       // Update participants
       if (data.participants) {
@@ -389,7 +409,7 @@ export default function ChatroomPage() {
     })
 
     newSocket.on("status_updated", (data: { participants: Participant[] }) => {
-      console.log("Status updated:", data)
+      console.log("🔄 Status updated:", data)
 
       // Update participants list with new status
       if (data.participants) {
@@ -402,32 +422,40 @@ export default function ChatroomPage() {
       }
     })
 
+    // Debug: Log all events
+    newSocket.onAny((event, ...args) => {
+      console.log(`🔍 Event '${event}' received:`, args)
+    })
+
     // Save socket instance and clean up on unmount
     setSocket(newSocket)
 
     return () => {
       if (newSocket) {
+        console.log("🧹 Cleaning up socket connection")
         // Leave room before disconnecting
         newSocket.emit("leave", { room: chatroomId })
         newSocket.disconnect()
       }
     }
-  }, [chatroomId, toast, username, token]);
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  }, [chatroomId, toast, username, token])
 
   const sendMessage = async () => {
-    if (!message.trim() || !socket || connectionStatus !== "connected") return
+    if (!message.trim() || !socket || connectionStatus !== "connected") {
+      console.log("❌ Cannot send message:", {
+        hasMessage: !!message.trim(),
+        hasSocket: !!socket,
+        connectionStatus,
+        socketConnected: socket?.connected
+      })
+      return
+    }
 
+    console.log("📤 Sending message:", message)
+
+    const timestamp = new Date()
     const newMessage: Message = {
-      id: `msg-${Date.now()}-local`,
+      id: `msg-${timestamp.getTime()}-local`,
       sender: {
         id: userId || "unknown-id",
         name: username || "unknown",
@@ -435,7 +463,7 @@ export default function ChatroomPage() {
         wallet_address: wallet_address
       },
       content: message,
-      timestamp: new Date(),
+      timestamp: timestamp,
       pending: true
     }
 
@@ -454,6 +482,95 @@ export default function ChatroomPage() {
     setMessage("")
   }
 
+  const leaveRoom = () => {
+    setIsLeavingRoom(true)
+
+    if (socket && connectionStatus === "connected") {
+      console.log("🚪 Leaving room:", chatroomId)
+      socket.emit("leave", { room: chatroomId })
+    }
+
+    toast({
+      title: "Leaving Room",
+      description: "You are leaving the chatroom...",
+    })
+
+    // Redirect after a short delay
+    setTimeout(() => {
+      setLeaveDialogOpen(false)
+      router.push("/dashboard")
+    }, 1000)
+  }
+
+  // const updateUsername = () => {
+  //   if (!tempUsername.trim()) return
+
+  //   const newUsername = tempUsername.trim()
+  //   setUsername(newUsername)
+  //   if (typeof window !== 'undefined') {
+  //     localStorage.setItem('chatUsername', newUsername)
+  //   }
+  //   dispatch<any>(updateUserProfile({ name: newUsername, email: undefined, toast }))
+  //   setShowUsernameDialog(false)
+
+  //   toast({
+  //     title: "Username Updated",
+  //     description: `Your username is now: ${newUsername}`,
+  //   })
+
+  //   // If connected, rejoin to update username
+  //   if (socket && connectionStatus === "connected") {
+  //     console.log("🔄 Updating username, rejoining room")
+  //     socket.emit("leave", { room: chatroomId })
+  //     setTimeout(() => {
+  //       socket.emit("join", {
+  //         room: chatroomId,
+  //         username: newUsername
+  //       })
+  //     }, 100)
+  //   }
+  // }
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  // const sendMessage = async () => {
+  //   if (!message.trim() || !socket || connectionStatus !== "connected") return
+
+  //   const newMessage: Message = {
+  //     id: `msg-${Date.now()}-local`,
+  //     sender: {
+  //       id: userId || "unknown-id",
+  //       name: username || "unknown",
+  //       smart_wallet_address: smart_wallet_address,
+  //       wallet_address: wallet_address
+  //     },
+  //     content: message,
+  //     timestamp: new Date(),
+  //     pending: true
+  //   }
+
+  //   // Add to local messages
+  //   setMessages(prev => [...prev, newMessage])
+
+  //   // Send to server
+  //   socket.emit("message", {
+  //     room: chatroomId,
+  //     userDbId: userId,
+  //     message: message,
+  //     username: username,
+  //     smart_wallet_address: smart_wallet_address
+  //   })
+
+  //   setMessage("")
+  // }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -469,24 +586,24 @@ export default function ChatroomPage() {
     })
   }
 
-  const leaveRoom = () => {
-    setIsLeavingRoom(true)
+  // const leaveRoom = () => {
+  //   setIsLeavingRoom(true)
 
-    if (socket && connectionStatus === "connected") {
-      socket.emit("leave", { room: chatroomId })
-    }
+  //   if (socket && connectionStatus === "connected") {
+  //     socket.emit("leave", { room: chatroomId })
+  //   }
 
-    toast({
-      title: "Leaving Room",
-      description: "You are leaving the chatroom...",
-    })
+  //   toast({
+  //     title: "Leaving Room",
+  //     description: "You are leaving the chatroom...",
+  //   })
 
-    // Redirect after a short delay
-    setTimeout(() => {
-      setLeaveDialogOpen(false)
-      router.push("/dashboard")
-    }, 1000)
-  }
+  //   // Redirect after a short delay
+  //   setTimeout(() => {
+  //     setLeaveDialogOpen(false)
+  //     router.push("/dashboard")
+  //   }, 1000)
+  // }
 
   const updateUsername = () => {
     if (!tempUsername.trim()) return
