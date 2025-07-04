@@ -406,7 +406,7 @@ export default function LearnMorePage() {
                             </span>
                         </h2>
                         <p className="text-base text-gray-300 max-w-2xl mx-auto">
-                            Decentralization isn't just a buzzword—it's a fundamental shift toward user empowerment and digital
+                            Decentralization isn&apos;t just a buzzword—it&apos;s a fundamental shift toward user empowerment and digital
                             sovereignty.
                         </p>
                     </motion.div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'
 import {
@@ -23,33 +23,33 @@ export default function ShowSummary({ showSummary, setShowSummary, messages }: S
     const [summary, setSummary] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    const fetchSummary = async () => {
+    const fetchSummary = useCallback(async () => {
         try {
             setIsLoading(true);
-            setSummary(""); 
+            setSummary("");
             const response: any = await GenerateSummary(messages);
             setSummary(response);
         } catch (error) {
             console.error('Error generating summary:', error);
-            setSummary(""); 
+            setSummary("");
         } finally {
             setIsLoading(false);
         }
-    }
+    }, [messages]);
 
     // Auto-generate summary when messages change
     React.useEffect(() => {
         if (messages.length > 0) {
             fetchSummary();
         }
-    }, [messages]);
+    }, [messages, fetchSummary]);
 
     // Reset and regenerate summary when dialog opens
     React.useEffect(() => {
         if (showSummary && messages.length > 0) {
             fetchSummary();
         }
-    }, [showSummary]);
+    }, [showSummary, messages.length, fetchSummary]);
 
     const renderSummaryContent = () => {
         if (isLoading) {
@@ -127,14 +127,14 @@ export default function ShowSummary({ showSummary, setShowSummary, messages }: S
         if (!summary) {
             return "max-w-lg"; // Increased size for generate button
         }
-        
+
         const contentLength = summary.length;
         if (contentLength < 500) {
-            return "max-w-xl"; 
+            return "max-w-xl";
         } else if (contentLength < 1500) {
-            return "max-w-3xl"; 
+            return "max-w-3xl";
         } else {
-            return "max-w-5xl"; 
+            return "max-w-5xl";
         }
     };
 
@@ -147,7 +147,7 @@ export default function ShowSummary({ showSummary, setShowSummary, messages }: S
                         AI Summary
                     </DialogTitle>
                 </DialogHeader>
-                
+
                 <div className="overflow-y-auto max-h-[calc(85vh-8rem)] pr-2">
                     {renderSummaryContent()}
                 </div>

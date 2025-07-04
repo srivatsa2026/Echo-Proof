@@ -1,6 +1,6 @@
 "use client"
 // TWEETNACL: https://github.com/tweetnacl/tweetnacl-js FOR ENCRYPTION AND DECRYPTION OF MESSAGES IN THE DATABASE 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -114,7 +114,7 @@ export default function ChatroomPage() {
 
   const dispatch = useDispatch()
   // Function to fetch messages from the API (paginated)
-  const fetchMessages = async (fetchOffset = 0, append = false) => {
+  const fetchMessages = useCallback(async (fetchOffset = 0, append = false) => {
     try {
       setLoadingMore(true);
       const response = await fetch(`/api/messages?chatroomId=${chatroomId}&limit=${MESSAGE_LIMIT}&offset=${fetchOffset}`);
@@ -150,7 +150,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [chatroomId, toast]);
 
   // Initial load
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function ChatroomPage() {
     setHasMore(true);
     fetchMessages(0, false);
     dispatch<any>(getUserDetails)
-  }, [chatroomId]);
+  }, [chatroomId, dispatch, fetchMessages]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (e.currentTarget.scrollTop === 0 && hasMore && !loadingMore) {
@@ -412,7 +412,7 @@ export default function ChatroomPage() {
         newSocket.disconnect()
       }
     }
-  }, [chatroomId, toast, username])
+  }, [chatroomId, toast, username, token]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

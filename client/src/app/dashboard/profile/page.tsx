@@ -59,9 +59,7 @@ export default function SettingsPage() {
       await dispatch<any>(updateUserProfile({
         name,
         email,
-        toast,
-        wallet_address,
-        smart_wallet_address,
+        toast
       }))
 
       toast({

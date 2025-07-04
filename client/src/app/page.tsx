@@ -23,6 +23,7 @@ import {
   Lock,
   Zap,
 } from "lucide-react"
+import Image from "next/image"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 40 },
@@ -499,12 +500,14 @@ export default function HomePage() {
                       ))}
                     </div>
 
-                    <p className="text-gray-300 mb-4 italic text-sm">"{testimonial.content}"</p>
+                    <p className="text-gray-300 mb-4 italic text-sm">&quot;{testimonial.content}&quot;</p>
 
                     <div className="flex items-center">
-                      <img
+                      <Image
                         src={testimonial.avatar || "/placeholder.svg"}
                         alt={testimonial.name}
+                        width={48}
+                        height={48}
                         className="w-10 h-10 rounded-full mr-3"
                       />
                       <div>
