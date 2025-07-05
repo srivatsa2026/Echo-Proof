@@ -93,7 +93,6 @@ export default function ChatroomPage() {
   const [participants, setParticipants] = useState<Participant[]>(initialParticipants)
   const [showParticipants, setShowParticipants] = useState(false)
   const [isLeavingRoom, setIsLeavingRoom] = useState(false)
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
 
@@ -153,13 +152,21 @@ export default function ChatroomPage() {
           }
         }
 
+        // Determine if this message is from the current user
+        const isCurrentUserMessage = (
+          msg.sender_smartWalletAddress === smart_wallet_address ||
+          msg.sender_wallet_address === wallet_address ||
+          msg.sender_id === userId
+        );
+
         return {
           id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
           sender: msg.sender || {
             id: msg.sender_id,
-            name: msg.sender_name,
+            name: isCurrentUserMessage ? username : (msg.sender_name || "Unknown User"),
             profileImage: msg.sender_profileImage,
-            smartWalletAddress: msg.sender_smartWalletAddress
+            smart_wallet_address: msg.sender_smartWalletAddress,
+            wallet_address: msg.sender_wallet_address
           },
           content: decryptedContent,
           timestamp: new Date(msg.sentAt || msg.sent_at)
@@ -183,7 +190,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address]);
+  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address, username, userId]);
 
   // Initial load
   useEffect(() => {
@@ -879,16 +886,20 @@ export default function ChatroomPage() {
   }
 
   const generateSummary = () => {
-    setIsGeneratingSummary(true)
-    setTimeout(() => {
-      setIsGeneratingSummary(false)
-      setShowSummary(true)
-
+    if (messages.length === 0) {
       toast({
-        title: "Summary Generated",
-        description: "AI has generated a summary of the conversation.",
+        title: "No Messages",
+        description: "There are no messages to summarize.",
+        variant: "destructive",
       })
-    }, 2000)
+      return
+    }
+
+    setShowSummary(true)
+    toast({
+      title: "Generating Summary",
+      description: "AI is analyzing the conversation...",
+    })
   }
 
   const formatTime = (date: Date | string) => {
@@ -1090,51 +1101,59 @@ export default function ChatroomPage() {
               )}
               {messages.length > 0 ? (
                 <>
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
-                    >
-                      {msg.sender?.id !== userId && (
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback>
-                            {msg.sender?.name
-                              ? msg.sender.name.charAt(0).toUpperCase()
-                              : "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div
-                        className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-muted-foreground">
-                            {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {msg.timestamp ? formatTime(msg.timestamp) : ""}
-                          </span>
+                  {messages.map((msg) => {
+                    // Check if this message is from the current user by comparing wallet addresses
+                    const isCurrentUser = (
+                      msg.sender?.smart_wallet_address === smart_wallet_address ||
+                      msg.sender?.wallet_address === wallet_address ||
+                      msg.sender?.id === userId
+                    );
 
-                        </div>
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex gap-3 ${isCurrentUser ? "justify-end" : "justify-start"}`}
+                      >
+                        {!isCurrentUser && (
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback>
+                              {msg.sender?.name
+                                ? msg.sender.name.charAt(0).toUpperCase()
+                                : "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                         <div
-                          className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"}`}
+                          className={`flex flex-col max-w-[70%] ${isCurrentUser ? "items-end" : "items-start"}`}
                         >
-                          {msg.content || ""}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              {isCurrentUser ? "You" : (msg.sender?.name || "Unknown User")}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {msg.timestamp ? formatTime(msg.timestamp) : ""}
+                            </span>
+                          </div>
+                          <div
+                            className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${isCurrentUser
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"}`}
+                          >
+                            {msg.content || ""}
+                          </div>
                         </div>
+                        {isCurrentUser && (
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback>
+                              {msg.sender?.name
+                                ? msg.sender.name.charAt(0).toUpperCase()
+                                : "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                       </div>
-                      {msg.sender?.id === userId && (
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback>
-                            {msg.sender?.name
-                              ? msg.sender.name.charAt(0).toUpperCase()
-                              : "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-center">

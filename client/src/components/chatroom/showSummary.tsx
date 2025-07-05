@@ -37,19 +37,19 @@ export default function ShowSummary({ showSummary, setShowSummary, messages }: S
         }
     }, [messages]);
 
-    // Auto-generate summary when messages change
-    React.useEffect(() => {
-        if (messages.length > 0) {
-            fetchSummary();
-        }
-    }, [messages, fetchSummary]);
-
-    // Reset and regenerate summary when dialog opens
+    // Auto-generate summary when messages change and dialog is open
     React.useEffect(() => {
         if (showSummary && messages.length > 0) {
             fetchSummary();
         }
-    }, [showSummary, messages.length, fetchSummary]);
+    }, [showSummary, messages, fetchSummary]);
+
+    // Reset summary when dialog opens
+    React.useEffect(() => {
+        if (showSummary) {
+            setSummary("");
+        }
+    }, [showSummary]);
 
     const renderSummaryContent = () => {
         if (isLoading) {
