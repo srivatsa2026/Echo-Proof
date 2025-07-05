@@ -1244,15 +1244,9 @@ export default function ChatroomPage() {
                           <div
                             className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${isCurrentUser
                               ? "bg-primary text-primary-foreground"
-                              : "bg-muted"} ${msg.pending ? "opacity-70" : ""}`}
+                              : "bg-muted"}`}
                           >
                             {msg.content || ""}
-                            {msg.pending && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span className="text-xs opacity-70">Sending...</span>
-                              </div>
-                            )}
                           </div>
                         </div>
                         {isCurrentUser && (
@@ -1404,7 +1398,7 @@ export default function ChatroomPage() {
         </AnimatePresence>
 
         {/* AI Summary Sidebar */}
-        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} messages={messages} />
+        <ShowSummary setShowSummary={setShowSummary} showSummary={showSummary} messages={messages.filter(m => !m.pending && m.content && m.content.trim() !== "")} />
       </div>
     </div>
   )
