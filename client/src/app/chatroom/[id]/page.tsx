@@ -538,16 +538,67 @@ export default function ChatroomPage() {
           )
         }
 
+        // Check if this is our own message to prevent duplicates
+        const isOwnMessage = message.sender?.id === userId ||
+          (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
+          (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+
+        console.log("📨 Message ownership check:", {
+          messageId: message.id,
+          senderId: message.sender?.id,
+          userId: userId,
+          isOwnMessage: isOwnMessage
+        });
+
         // Add received message to messages with decrypted content
-        setMessages(prev => [
-          ...prev,
-          {
-            id: message.id,
-            sender: message.sender,
-            content: decryptedContent,
-            timestamp: new Date(message.timestamp)
+        setMessages(prev => {
+          // Check if this is our own message and we have a pending local message
+          const isOwnMessage = message.sender?.id === userId ||
+            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
+            (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+
+          if (isOwnMessage) {
+            // Replace pending local message with server-confirmed message
+            const hasPendingMessage = prev.some(msg => msg.pending && msg.content === decryptedContent);
+            if (hasPendingMessage) {
+              console.log("📨 Replacing pending message with server confirmation:", message.id);
+              return prev.map(msg =>
+                msg.pending && msg.content === decryptedContent
+                  ? {
+                    id: message.id,
+                    sender: message.sender,
+                    content: decryptedContent,
+                    timestamp: new Date(message.timestamp),
+                    pending: false
+                  }
+                  : msg
+              );
+            }
           }
-        ])
+
+          // Check if message already exists (to prevent duplicates)
+          const messageExists = prev.some(existingMsg =>
+            existingMsg.id === message.id ||
+            (existingMsg.sender?.id === message.sender?.id &&
+              existingMsg.content === decryptedContent &&
+              Math.abs(existingMsg.timestamp.getTime() - new Date(message.timestamp).getTime()) < 1000) // Within 1 second
+          );
+
+          if (messageExists) {
+            console.log("📨 Skipping duplicate message:", message.id);
+            return prev;
+          }
+
+          return [
+            ...prev,
+            {
+              id: message.id,
+              sender: message.sender,
+              content: decryptedContent,
+              timestamp: new Date(message.timestamp)
+            }
+          ];
+        });
       } catch (error) {
         console.error("❌ Error decrypting message:", error)
         // Add message with encrypted content if decryption fails
@@ -717,8 +768,9 @@ export default function ChatroomPage() {
       }
 
       const timestamp = new Date()
+      const localMessageId = `local-${timestamp.getTime()}-${Math.random().toString(36).substr(2, 9)}`
       const newMessage: Message = {
-        id: `msg-${timestamp.getTime()}-local`,
+        id: localMessageId,
         sender: {
           id: userId || "unknown-id",
           name: username || "unknown",
@@ -1145,10 +1197,10 @@ export default function ChatroomPage() {
               {messages.length > 0 ? (
                 <>
                   {messages.map((msg) => {
-                    // Check if current user is the sender using multiple criteria
+                    // Check if current user is the sender using exact ID match first, then wallet addresses
                     const isCurrentUser = msg.sender?.id === userId ||
-                      msg.sender?.smart_wallet_address === smart_wallet_address ||
-                      msg.sender?.wallet_address === wallet_address;
+                      (msg.sender?.smart_wallet_address && msg.sender.smart_wallet_address === smart_wallet_address) ||
+                      (msg.sender?.wallet_address && msg.sender.wallet_address === wallet_address);
 
                     console.log("🔍 Rendering message:", {
                       messageId: msg.id,
@@ -1160,6 +1212,7 @@ export default function ChatroomPage() {
                       smart_wallet_address: smart_wallet_address,
                       wallet_address: wallet_address,
                       isCurrentUser: isCurrentUser,
+                      pending: msg.pending,
                       senderObject: msg.sender
                     });
 
@@ -1191,9 +1244,15 @@ export default function ChatroomPage() {
                           <div
                             className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${isCurrentUser
                               ? "bg-primary text-primary-foreground"
-                              : "bg-muted"}`}
+                              : "bg-muted"} ${msg.pending ? "opacity-70" : ""}`}
                           >
                             {msg.content || ""}
+                            {msg.pending && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <span className="text-xs opacity-70">Sending...</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {isCurrentUser && (
