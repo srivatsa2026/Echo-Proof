@@ -30,10 +30,10 @@ import { encryptMessage, decryptMessage, testEncryption } from "@/lib/simple-enc
 import dynamic from "next/dynamic"
 
 // Dynamically import the encryption test component to avoid SSR issues
-const EncryptionTest = dynamic(() => import("@/components/chatroom/EncryptionTest"), {
-  ssr: false,
-  loading: () => <div className="p-4 text-center">Loading encryption test...</div>
-})
+// const EncryptionTest = dynamic(() => import("@/components/chatroom/EncryptionTest"), {
+//   ssr: false,
+//   loading: () => <div className="p-4 text-center">Loading encryption test...</div>
+// })
 
 
 // Define types for the app
@@ -98,12 +98,7 @@ export default function ChatroomPage() {
   const [socket, setSocket] = useState<Socket | null>(null)
 
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
-  // const [username, setUsername] = useState(() => {
-  //   if (typeof window !== 'undefined') {
-  //     return localStorage.getItem('chatUsername') || `User-${Math.floor(Math.random() * 10000)}`
-  //   }
-  //   return `User-${Math.floor(Math.random() * 10000)}`
-  // })
+ 
   const randomUsername = `User-${Math.floor(Math.random() * 10000)}`
   const usernameFromState = useSelector((state: any) => state.user.name)
   console.log("the user name from the state is ", usernameFromState)
@@ -874,23 +869,7 @@ export default function ChatroomPage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Encryption Test - Remove this in production */}
-      <div className="p-4 border-b">
-        <EncryptionTest />
-        <Button
-          onClick={async () => {
-            console.log('🧪 Testing encryption...');
-            try {
-              const result = await testEncryption();
-              console.log('🧪 Test completed:', result);
-            } catch (error) {
-              console.error('🧪 Test failed:', error);
-            }
-          }}
-          className="ml-2"
-        >
-          Test Encryption
-        </Button>
-      </div>
+     
 
       {/* Username Dialog */}
       <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>

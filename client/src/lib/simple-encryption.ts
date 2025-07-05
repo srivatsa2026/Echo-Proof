@@ -50,7 +50,7 @@ export const encryptMessage = async (
         console.log('🔐 Wallet address:', walletAddress);
 
         const encryptedMessage = simpleEncrypt(message, chatroomId);
-        const encryptedSymmetricKey = 'simple-encryption-key-' + Date.now(); // Make it unique
+        const encryptedSymmetricKey = 'simple-encryption-key-' + Date.now(); 
 
         console.log('🔐 Encryption completed:');
         console.log('🔐 Encrypted message length:', encryptedMessage.length);
