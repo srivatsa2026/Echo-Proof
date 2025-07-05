@@ -157,10 +157,24 @@ export default function ChatroomPage() {
           }
         }
 
-        // Use the exact format from API
+        // Ensure sender object is properly structured
+        const sender = msg.sender ? {
+          id: msg.sender.id,
+          name: msg.sender.name || "Unknown User",
+          smart_wallet_address: msg.sender.smartWalletAddress || msg.sender.smart_wallet_address,
+          wallet_address: msg.sender.walletAddress || msg.sender.wallet_address
+        } : {
+          id: msg.senderId || "unknown",
+          name: "Unknown User",
+          smart_wallet_address: undefined,
+          wallet_address: undefined
+        };
+
+        console.log("🔍 Processed sender object:", sender);
+
         return {
           id: msg.id,
-          sender: msg.sender,
+          sender: sender,
           content: decryptedContent,
           timestamp: new Date(msg.sentAt)
         };
@@ -421,9 +435,31 @@ export default function ChatroomPage() {
             }
           }
 
+          // Handle both old and new sender formats
+          let sender = msg.sender;
+          if (!sender && msg.sender_id) {
+            // Old format: convert sender_id to sender object
+            sender = {
+              id: msg.sender_id,
+              name: "Unknown User",
+              smart_wallet_address: undefined,
+              wallet_address: undefined
+            };
+          }
+
+          // Ensure sender object has all required fields
+          if (sender) {
+            sender = {
+              id: sender.id,
+              name: sender.name || "Unknown User",
+              smart_wallet_address: sender.smart_wallet_address,
+              wallet_address: sender.wallet_address
+            };
+          }
+
           return {
-            id: msg.id,
-            sender: msg.sender,
+            id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
+            sender: sender,
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
           };
@@ -551,9 +587,31 @@ export default function ChatroomPage() {
             }
           }
 
+          // Handle both old and new sender formats
+          let sender = msg.sender;
+          if (!sender && msg.sender_id) {
+            // Old format: convert sender_id to sender object
+            sender = {
+              id: msg.sender_id,
+              name: "Unknown User",
+              smart_wallet_address: undefined,
+              wallet_address: undefined
+            };
+          }
+
+          // Ensure sender object has all required fields
+          if (sender) {
+            sender = {
+              id: sender.id,
+              name: sender.name || "Unknown User",
+              smart_wallet_address: sender.smart_wallet_address,
+              wallet_address: sender.wallet_address
+            };
+          }
+
           return {
-            id: msg.id,
-            sender: msg.sender,
+            id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
+            sender: sender,
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
           };
@@ -671,6 +729,13 @@ export default function ChatroomPage() {
         timestamp: timestamp,
         pending: true
       }
+
+      console.log("📤 Creating local message:", {
+        userId: userId,
+        username: username,
+        smart_wallet_address: smart_wallet_address,
+        wallet_address: wallet_address
+      });
 
       // Add to local messages
       setMessages(prev => [...prev, newMessage])
@@ -1080,20 +1145,30 @@ export default function ChatroomPage() {
               {messages.length > 0 ? (
                 <>
                   {messages.map((msg) => {
+                    // Check if current user is the sender using multiple criteria
+                    const isCurrentUser = msg.sender?.id === userId ||
+                      msg.sender?.smart_wallet_address === smart_wallet_address ||
+                      msg.sender?.wallet_address === wallet_address;
+
                     console.log("🔍 Rendering message:", {
                       messageId: msg.id,
                       senderId: msg.sender?.id,
                       senderName: msg.sender?.name,
+                      senderSmartWallet: msg.sender?.smart_wallet_address,
+                      senderWallet: msg.sender?.wallet_address,
                       userId: userId,
-                      isCurrentUser: msg.sender?.id === userId
+                      smart_wallet_address: smart_wallet_address,
+                      wallet_address: wallet_address,
+                      isCurrentUser: isCurrentUser,
+                      senderObject: msg.sender
                     });
 
                     return (
                       <div
                         key={msg.id}
-                        className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
+                        className={`flex gap-3 ${isCurrentUser ? "justify-end" : "justify-start"}`}
                       >
-                        {msg.sender?.id !== userId && (
+                        {!isCurrentUser && (
                           <Avatar className="h-8 w-8 flex-shrink-0">
                             <AvatarFallback>
                               {msg.sender?.name
@@ -1103,25 +1178,25 @@ export default function ChatroomPage() {
                           </Avatar>
                         )}
                         <div
-                          className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
+                          className={`flex flex-col max-w-[70%] ${isCurrentUser ? "items-end" : "items-start"}`}
                         >
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs text-muted-foreground">
-                              {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
+                              {isCurrentUser ? "You" : (msg.sender?.name || "Unknown")}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               {msg.timestamp ? formatTime(msg.timestamp) : ""}
                             </span>
                           </div>
                           <div
-                            className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
+                            className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${isCurrentUser
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted"}`}
                           >
                             {msg.content || ""}
                           </div>
                         </div>
-                        {msg.sender?.id === userId && (
+                        {isCurrentUser && (
                           <Avatar className="h-8 w-8 flex-shrink-0">
                             <AvatarFallback>
                               {msg.sender?.name

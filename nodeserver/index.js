@@ -344,6 +344,21 @@ io.on('connection', (socket) => {
         const userName = data.username || users[userId]?.name || 'Unknown User';
         const timestamp = new Date().toISOString();
 
+        // Get user details from database to ensure consistency
+        let userDetails = null;
+        try {
+            const userResult = await sql`
+                SELECT name, "smartWalletAddress" 
+                FROM users 
+                WHERE id = ${userDbId}
+            `;
+            if (userResult && userResult.length > 0) {
+                userDetails = userResult[0];
+            }
+        } catch (error) {
+            logger.error(`❌ Error fetching user details: ${error.message}`);
+        }
+
         if (!roomId || !messageText) {
             socket.emit('error', { message: 'Room ID and message are required.' });
             return;
@@ -365,10 +380,11 @@ io.on('connection', (socket) => {
 
         // Create message object with encryption data
         const messageObj = {
-            id: `msg-${timestamp}-${userId}`,
+            id: `msg-${timestamp}-${userDbId}`,
             sender: {
-                id: userId,
-                name: userName
+                id: userDbId, // Use database user ID instead of socket ID
+                name: userDetails?.name || userName || 'Unknown User',
+                smart_wallet_address: userDetails?.smartWalletAddress || smartWalletAddress
             },
             content: messageText, // This is now the encrypted message
             encryptedSymmetricKey: encryptedSymmetricKey, // Include encryption key
@@ -445,15 +461,31 @@ io.on('connection', (socket) => {
         let history = [];
 
         try {
+            // Fetch messages with sender information using a JOIN
             const result = await sql`
-                SELECT "senderId", message, "encryptedSymmetricKey", "sentAt" 
-                FROM chat_messages 
-                WHERE "chatroomId" = ${roomId} 
-                ORDER BY "sentAt" ASC
+                SELECT 
+                    cm.id,
+                    cm."senderId", 
+                    cm.message, 
+                    cm."encryptedSymmetricKey", 
+                    cm."sentAt",
+                    u.name as sender_name,
+                    u."smartWalletAddress" as sender_smart_wallet_address,
+                    u."walletAddress" as sender_wallet_address
+                FROM chat_messages cm
+                LEFT JOIN users u ON cm."senderId" = u.id
+                WHERE cm."chatroomId" = ${roomId} 
+                ORDER BY cm."sentAt" ASC
             `;
 
             history = result.map(row => ({
-                sender_id: row.senderId,
+                id: row.id,
+                sender: {
+                    id: row.senderId,
+                    name: row.sender_name || 'Unknown User',
+                    smart_wallet_address: row.sender_smart_wallet_address,
+                    wallet_address: row.sender_wallet_address
+                },
                 content: row.message,
                 encryptedSymmetricKey: row.encryptedSymmetricKey,
                 timestamp: row.sentAt instanceof Date ? row.sentAt.toISOString() : row.sentAt.toString()
