@@ -11,6 +11,8 @@
   "dependencies": {
     "@google/genai": "^1.0.1",
     "@hookform/resolvers": "^5.0.1",
+    "@lit-protocol/constants": "^7.2.0",
+    "@lit-protocol/lit-node-client": "^7.2.0",
     "@prisma/client": "^6.11.1",
     "@radix-ui/react-accordion": "^1.2.8",
     "@radix-ui/react-alert-dialog": "^1.1.11",
@@ -65,6 +67,7 @@
     "react-resizable-panels": "^2.1.8",
     "recharts": "^2.15.3",
     "redux-persist": "^6.0.0",
+    "siwe": "^3.0.0",
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",

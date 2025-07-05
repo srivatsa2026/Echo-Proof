@@ -25,6 +25,15 @@ import Cookies from "js-cookie"
 import axios from "axios"
 import { useDispatch, useSelector } from "react-redux"
 import { updateUserProfile, getUserDetails } from "@/store/reducers/userSlice"
+// import { encryptMessage, decryptMessage } from "@/lib/lit-encryption"
+import { encryptMessage, decryptMessage, testEncryption } from "@/lib/simple-encryption"
+import dynamic from "next/dynamic"
+
+// Dynamically import the encryption test component to avoid SSR issues
+const EncryptionTest = dynamic(() => import("@/components/chatroom/EncryptionTest"), {
+  ssr: false,
+  loading: () => <div className="p-4 text-center">Loading encryption test...</div>
+})
 
 
 // Define types for the app
@@ -72,8 +81,9 @@ export default function ChatroomPage() {
     const found = state.chatroom.chatrooms.find((c: any) => c.id === chatroomId);
     return found ? found.title : "Chatroom";
   });
-  const smart_wallet_address = useActiveWallet()?.getAccount()?.address
-  const wallet_address = useActiveWallet()?.getAdminAccount?.()?.address
+  const wallet = useActiveWallet()
+  const smart_wallet_address = wallet?.getAccount()?.address
+  const wallet_address = wallet?.getAdminAccount?.()?.address
   const userId = useSelector((state: any) => state.user.id)
 
 
@@ -122,17 +132,41 @@ export default function ChatroomPage() {
         throw new Error('Failed to fetch messages');
       }
       const data = await response.json();
-      const formattedMessages = data.map((msg: any) => ({
-        id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
-        sender: msg.sender || {
-          id: msg.sender_id,
-          name: msg.sender_name,
-          profileImage: msg.sender_profileImage,
-          smartWalletAddress: msg.sender_smartWalletAddress
-        },
-        content: msg.message || msg.message_text,
-        timestamp: new Date(msg.sentAt || msg.sent_at)
+
+      // Decrypt messages if they're encrypted
+      const formattedMessages = await Promise.all(data.map(async (msg: any) => {
+        let decryptedContent = msg.message || msg.message_text;
+
+        // Check if message is encrypted
+        if (msg.encryptedSymmetricKey) {
+          try {
+            const walletAddress = smart_wallet_address || wallet_address || "unknown";
+            decryptedContent = await decryptMessage(
+              msg.message || msg.message_text,
+              msg.encryptedSymmetricKey,
+              chatroomId,
+              wallet,
+              walletAddress
+            );
+          } catch (error) {
+            console.error('Error decrypting message:', error);
+            decryptedContent = "[Encrypted message - unable to decrypt]";
+          }
+        }
+
+        return {
+          id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
+          sender: msg.sender || {
+            id: msg.sender_id,
+            name: msg.sender_name,
+            profileImage: msg.sender_profileImage,
+            smartWalletAddress: msg.sender_smartWalletAddress
+          },
+          content: decryptedContent,
+          timestamp: new Date(msg.sentAt || msg.sent_at)
+        };
       }));
+
       if (append) {
         setMessages(prev => [...formattedMessages, ...prev]);
       } else {
@@ -150,7 +184,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, toast]);
+  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address]);
 
   // Initial load
   useEffect(() => {
@@ -204,13 +238,18 @@ export default function ChatroomPage() {
         username: username
       })
 
+      // Request message history
+      newSocket.emit("get_history", {
+        room: chatroomId
+      })
+
       toast({
         title: "Connected",
         description: "You are now connected to the chat server.",
       })
     })
 
-    newSocket.on("connect_error", (err:any) => {
+    newSocket.on("connect_error", (err: any) => {
       console.error("❌ Connection error:", err)
       console.error("Error type:", err.type)
       console.error("Error description:", err.description)
@@ -270,7 +309,7 @@ export default function ChatroomPage() {
     // Socket event handlers
     newSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
       console.log("📡 Connection status:", data)
-      
+
       // Additional confirmation that we're connected
       if (data.status === 'connected') {
         setConnectionStatus("connected")
@@ -286,7 +325,7 @@ export default function ChatroomPage() {
       })
     })
 
-    newSocket.on("join_success", (data: { participants: Participant[], history?: any[], roomId: string }) => {
+    newSocket.on("join_success", async (data: { participants: Participant[], history?: any[], roomId: string }) => {
       console.log("✅ Join success:", data)
 
       // Set participants list (mark current user)
@@ -310,10 +349,32 @@ export default function ChatroomPage() {
 
       // Load message history if available
       if (data.history && Array.isArray(data.history)) {
-        const historyMessages = data.history.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }))
+        const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
+          let decryptedContent = msg.content || msg.message;
+
+          // Check if message is encrypted
+          if (msg.encryptedSymmetricKey) {
+            try {
+              const walletAddress = smart_wallet_address || wallet_address || "unknown";
+              decryptedContent = await decryptMessage(
+                msg.content || msg.message,
+                msg.encryptedSymmetricKey,
+                chatroomId,
+                wallet,
+                walletAddress
+              );
+            } catch (error) {
+              console.error('Error decrypting history message:', error);
+              decryptedContent = "[Encrypted message - unable to decrypt]";
+            }
+          }
+
+          return {
+            ...msg,
+            content: decryptedContent,
+            timestamp: new Date(msg.timestamp)
+          };
+        }));
         console.log("📚 Loading", historyMessages.length, "messages from history")
         setMessages(historyMessages)
       }
@@ -370,28 +431,96 @@ export default function ChatroomPage() {
       })
     })
 
-    newSocket.on("message_received", (message: any) => {
+    newSocket.on("message_received", async (message: any) => {
       console.log("📨 Message received:", message)
 
-      // Add received message to messages
-      setMessages(prev => [
-        ...prev,
-        {
-          ...message,
-          timestamp: new Date(message.timestamp)
+      try {
+        // Decrypt the message if it's encrypted
+        let decryptedContent = message.content
+        if (message.encryptedSymmetricKey) {
+          const walletAddress = smart_wallet_address || wallet_address || "unknown"
+
+          decryptedContent = await decryptMessage(
+            message.content,
+            message.encryptedSymmetricKey,
+            chatroomId,
+            wallet,
+            walletAddress
+          )
         }
-      ])
+
+        // Add received message to messages with decrypted content
+        setMessages(prev => [
+          ...prev,
+          {
+            ...message,
+            content: decryptedContent,
+            timestamp: new Date(message.timestamp)
+          }
+        ])
+      } catch (error) {
+        console.error("❌ Error decrypting message:", error)
+        // Add message with encrypted content if decryption fails
+        setMessages(prev => [
+          ...prev,
+          {
+            ...message,
+            content: "[Encrypted message - unable to decrypt]",
+            timestamp: new Date(message.timestamp)
+          }
+        ])
+      }
     })
 
     newSocket.on("message_sent", (message: any) => {
       console.log("✅ Message sent confirmation:", message)
-      
+
       // Remove pending status from the message
-      setMessages(prev => prev.map(msg => 
-        msg.id === `msg-${new Date(message.timestamp).getTime()}-local` 
+      setMessages(prev => prev.map(msg =>
+        msg.id === `msg-${new Date(message.timestamp).getTime()}-local`
           ? { ...msg, pending: false, id: message.id }
           : msg
       ))
+    })
+
+    newSocket.on("history", async (data: { room: string, messages: any[] }) => {
+      console.log("📚 History received:", data)
+
+      if (data.messages && Array.isArray(data.messages)) {
+        const historyMessages = await Promise.all(data.messages.map(async (msg: any) => {
+          let decryptedContent = msg.content || msg.message;
+
+          // Check if message is encrypted
+          if (msg.encryptedSymmetricKey) {
+            try {
+              const walletAddress = smart_wallet_address || wallet_address || "unknown";
+              decryptedContent = await decryptMessage(
+                msg.content || msg.message,
+                msg.encryptedSymmetricKey,
+                chatroomId,
+                wallet,
+                walletAddress
+              );
+            } catch (error) {
+              console.error('Error decrypting history message:', error);
+              decryptedContent = "[Encrypted message - unable to decrypt]";
+            }
+          }
+
+          return {
+            id: `msg-${msg.timestamp}-${msg.sender_id}`,
+            sender: {
+              id: msg.sender_id,
+              name: "Unknown User", // We'll need to get user names separately
+            },
+            content: decryptedContent,
+            timestamp: new Date(msg.timestamp)
+          };
+        }));
+
+        console.log("📚 Loaded", historyMessages.length, "messages from history")
+        setMessages(historyMessages)
+      }
     })
 
     newSocket.on("participants_list", (data: { participants: Participant[] }) => {
@@ -453,33 +582,95 @@ export default function ChatroomPage() {
 
     console.log("📤 Sending message:", message)
 
-    const timestamp = new Date()
-    const newMessage: Message = {
-      id: `msg-${timestamp.getTime()}-local`,
-      sender: {
-        id: userId || "unknown-id",
-        name: username || "unknown",
-        smart_wallet_address: smart_wallet_address,
-        wallet_address: wallet_address
-      },
-      content: message,
-      timestamp: timestamp,
-      pending: true
+    // Use wallet from component level
+    const walletAddress = smart_wallet_address || wallet_address || "unknown"
+
+    try {
+      // Encrypt the message before sending
+      console.log('🔐 Starting encryption process...');
+      console.log('🔐 Input parameters:', {
+        message: message.substring(0, 50) + '...',
+        chatroomId,
+        hasWallet: !!wallet,
+        walletAddress
+      });
+
+      const encryptionResult = await encryptMessage(
+        message,
+        chatroomId,
+        wallet,
+        walletAddress
+      );
+
+      console.log('🔐 Encryption result received:', encryptionResult);
+
+      const { encryptedMessage, encryptedSymmetricKey } = encryptionResult;
+
+      console.log('🔐 Destructured values:', {
+        hasEncryptedMessage: !!encryptedMessage,
+        hasEncryptedSymmetricKey: !!encryptedSymmetricKey,
+        encryptedSymmetricKey: encryptedSymmetricKey
+      });
+
+      // Validate encryption result
+      if (!encryptedMessage || !encryptedSymmetricKey) {
+        throw new Error('Encryption failed: missing encrypted message or key');
+      }
+
+      const timestamp = new Date()
+      const newMessage: Message = {
+        id: `msg-${timestamp.getTime()}-local`,
+        sender: {
+          id: userId || "unknown-id",
+          name: username || "unknown",
+          smart_wallet_address: smart_wallet_address,
+          wallet_address: wallet_address
+        },
+        content: message, // Show original message locally
+        timestamp: timestamp,
+        pending: true
+      }
+
+      // Add to local messages
+      setMessages(prev => [...prev, newMessage])
+
+      // Send encrypted message to server
+      console.log("📤 Sending to socket server:", {
+        room: chatroomId,
+        userDbId: userId,
+        message: encryptedMessage,
+        encryptedSymmetricKey: encryptedSymmetricKey,
+        username: username,
+        smart_wallet_address: smart_wallet_address
+      })
+
+      socket.emit("message", {
+        room: chatroomId,
+        userDbId: userId,
+        message: encryptedMessage, // Send encrypted message
+        encryptedSymmetricKey: encryptedSymmetricKey, // Send encryption key
+        username: username,
+        smart_wallet_address: smart_wallet_address
+      })
+
+      setMessage("")
+    } catch (error) {
+      console.error("❌ Error encrypting message:", error)
+      console.error("Error details:", {
+        message: message,
+        chatroomId: chatroomId,
+        walletAddress: smart_wallet_address || wallet_address,
+        hasWallet: !!wallet,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : 'No stack trace'
+      })
+
+      toast({
+        title: "Encryption Error",
+        description: error instanceof Error ? error.message : "Failed to encrypt message. Please try again.",
+        variant: "destructive",
+      })
     }
-
-    // Add to local messages
-    setMessages(prev => [...prev, newMessage])
-
-    // Send to server
-    socket.emit("message", {
-      room: chatroomId,
-      userDbId: userId,
-      message: message,
-      username: username,
-      smart_wallet_address: smart_wallet_address
-    })
-
-    setMessage("")
   }
 
   const leaveRoom = () => {
@@ -682,6 +873,25 @@ export default function ChatroomPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Encryption Test - Remove this in production */}
+      <div className="p-4 border-b">
+        <EncryptionTest />
+        <Button
+          onClick={async () => {
+            console.log('🧪 Testing encryption...');
+            try {
+              const result = await testEncryption();
+              console.log('🧪 Test completed:', result);
+            } catch (error) {
+              console.error('🧪 Test failed:', error);
+            }
+          }}
+          className="ml-2"
+        >
+          Test Encryption
+        </Button>
+      </div>
+
       {/* Username Dialog */}
       <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>
         <DialogContent>

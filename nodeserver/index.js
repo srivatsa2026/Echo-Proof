@@ -69,7 +69,7 @@ testDatabaseConnection();
 
 // Routes
 app.get('/', (req, res) => {
-    res.json({ 
+    res.json({
         message: 'Chat Server is running!',
         timestamp: new Date().toISOString(),
         connectedUsers: Object.keys(users).length,
@@ -79,11 +79,51 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ 
+    res.json({
         status: 'healthy',
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
     });
+});
+
+// Test database insertion endpoint
+app.post('/test-insert', async (req, res) => {
+    try {
+        const testMessageId = uuidv4();
+        const testRoomId = 'test-room-' + Date.now();
+        const testUserId = 'test-user-' + Date.now();
+        const testMessage = 'test message';
+        const testEncryptionKey = 'test-encryption-key-' + Date.now();
+        const testTimestamp = new Date().toISOString();
+
+        logger.info('Testing database insertion with encryption key:', testEncryptionKey);
+
+        const result = await sql`
+            INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "encryptedSymmetricKey", "sentAt") 
+            VALUES (${testMessageId}, ${testRoomId}, ${testUserId}, ${testMessage}, ${testEncryptionKey}, ${testTimestamp})
+        `;
+
+        // Verify the insertion by reading it back
+        const verifyResult = await sql`
+            SELECT "encryptedSymmetricKey" FROM chat_messages WHERE id = ${testMessageId}
+        `;
+
+        logger.info('Verification result:', verifyResult[0]);
+
+        res.json({
+            success: true,
+            message: 'Test insertion successful',
+            insertedKey: testEncryptionKey,
+            retrievedKey: verifyResult[0]?.encryptedSymmetricKey,
+            keysMatch: testEncryptionKey === verifyResult[0]?.encryptedSymmetricKey
+        });
+    } catch (error) {
+        logger.error('Test insertion failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
 // Helper function to get room participants
@@ -146,10 +186,10 @@ io.on('connection', (socket) => {
             for (const roomId of users[userId].rooms) {
                 if (rooms[roomId] && rooms[roomId].includes(userId)) {
                     rooms[roomId] = rooms[roomId].filter(id => id !== userId);
-                    
+
                     // Get updated participants
                     const participants = getRoomParticipants(roomId);
-                    
+
                     // Notify others in the room
                     socket.to(roomId).emit('user_left', {
                         message: `${users[userId].name} has left the room.`,
@@ -159,7 +199,7 @@ io.on('connection', (socket) => {
                     });
                 }
             }
-            
+
             // Remove user from users dictionary
             delete users[userId];
         }
@@ -179,7 +219,7 @@ io.on('connection', (socket) => {
     // Handle joining a room
     socket.on('join', (data) => {
         logger.info(`📥 Join request received from ${userId}:`, data);
-        
+
         const roomId = data.room;
         const userName = data.username || users[userId]?.name || 'Unknown User';
 
@@ -240,7 +280,7 @@ io.on('connection', (socket) => {
     // Handle leaving a room
     socket.on('leave', (data) => {
         logger.info(`📤 Leave request received from ${userId}:`, data);
-        
+
         const roomId = data.room;
 
         if (!roomId) {
@@ -256,7 +296,7 @@ io.on('connection', (socket) => {
         // Remove user from room's participants
         if (rooms[roomId] && rooms[roomId].includes(userId)) {
             rooms[roomId] = rooms[roomId].filter(id => id !== userId);
-            
+
             // If room is empty, clean up
             if (rooms[roomId].length === 0) {
                 delete rooms[roomId];
@@ -294,11 +334,13 @@ io.on('connection', (socket) => {
     // Handle incoming messages
     socket.on('message', async (data) => {
         logger.info(`📩 Message received from ${userId}:`, data);
-        
+        logger.info(`📩 Encryption key received:`, data.encryptedSymmetricKey);
+
         const userDbId = data.userDbId;
         const smartWalletAddress = data.smart_wallet_address;
         const roomId = data.room;
         const messageText = data.message;
+        const encryptedSymmetricKey = data.encryptedSymmetricKey; // New field for encryption key
         const userName = data.username || users[userId]?.name || 'Unknown User';
         const timestamp = new Date().toISOString();
 
@@ -319,16 +361,17 @@ io.on('connection', (socket) => {
             return;
         }
 
-        logger.info(`📩 Processing message in room ${roomId} from ${userName}: ${messageText}`);
+        logger.info(`📩 Processing encrypted message in room ${roomId} from ${userName}`);
 
-        // Create message object
+        // Create message object with encryption data
         const messageObj = {
             id: `msg-${timestamp}-${userId}`,
             sender: {
                 id: userId,
                 name: userName
             },
-            content: messageText,
+            content: messageText, // This is now the encrypted message
+            encryptedSymmetricKey: encryptedSymmetricKey, // Include encryption key
             timestamp: timestamp
         };
 
@@ -337,52 +380,42 @@ io.on('connection', (socket) => {
             roomMessages[roomId].push(messageObj);
         }
 
-        // Broadcast the message to everyone in the room EXCEPT the sender
+        // Broadcast the encrypted message to everyone in the room EXCEPT the sender
         socket.to(roomId).emit('message_received', messageObj);
 
-        // Database insertion with better error handling and debugging
+        // Database insertion with encryption support
         try {
-            logger.info('Inserting message into database...');
+            logger.info('Inserting encrypted message into database...');
+            logger.info('Encryption key being inserted:', encryptedSymmetricKey);
+            logger.info('Encryption key type:', typeof encryptedSymmetricKey);
+            logger.info('Encryption key length:', encryptedSymmetricKey ? encryptedSymmetricKey.length : 'null');
 
-            // Log the exact values being inserted
-            logger.info(`Inserting: room_id=${roomId}, userDbId=${userDbId}, message=${messageText}, timestamp=${timestamp}`);
-
-            // Insert the message using Neon's serverless client
+            // Insert the encrypted message using Neon's serverless client
             const messageId = uuidv4();
+
+            // Use the standard template literal syntax with explicit null handling
             const result = await sql`
-                INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "sentAt") 
-                VALUES (${messageId}, ${roomId}, ${userDbId}, ${messageText}, ${timestamp})
+                INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "encryptedSymmetricKey", "sentAt") 
+                VALUES (${messageId}, ${roomId}, ${userDbId}, ${messageText}, ${encryptedSymmetricKey || null}, ${timestamp})
             `;
 
-            logger.info(`✅ Message inserted successfully`);
-
-            // Verify the insert by querying back
-            const verifyResult = await sql`
-                SELECT COUNT(*) as count FROM chat_messages 
-                WHERE "chatroomId" = ${roomId} AND "senderId" = ${userDbId} AND message = ${messageText}
-            `;
-            const count = verifyResult[0].count;
-            logger.info(`Verification: Found ${count} matching records in database`);
-
-            // Also get the total count in the table
-            const totalResult = await sql`SELECT COUNT(*) as count FROM chat_messages`;
-            const totalCount = totalResult[0].count;
-            logger.info(`Total messages in chat_messages table: ${totalCount}`);
+            logger.info(`✅ Encrypted message inserted successfully with key: ${encryptedSymmetricKey ? 'YES' : 'NO'}`);
 
         } catch (error) {
             logger.error(`❌ Database error: ${error.message}`);
+            logger.error(`❌ Error stack: ${error.stack}`);
         }
 
         // Send confirmation to the sender
         socket.emit('message_sent', messageObj);
 
-        logger.info(`✅ Message processed successfully`);
+        logger.info(`✅ Encrypted message processed successfully`);
     });
 
     // Get room participants
     socket.on('get_participants', (data) => {
         logger.info(`📋 Participants request from ${userId}:`, data);
-        
+
         const roomId = data.room;
 
         if (!roomId) {
@@ -401,32 +434,33 @@ io.on('connection', (socket) => {
     // Get message history for a room
     socket.on('get_history', async (data) => {
         logger.info(`📚 History request from ${userId}:`, data);
-        
+
         const roomId = data.room;
-        
+
         if (!roomId) {
             socket.emit('error', { message: 'Room ID is required.' });
             return;
         }
 
         let history = [];
-        
+
         try {
             const result = await sql`
-                SELECT "senderId", message, "sentAt" 
+                SELECT "senderId", message, "encryptedSymmetricKey", "sentAt" 
                 FROM chat_messages 
                 WHERE "chatroomId" = ${roomId} 
                 ORDER BY "sentAt" ASC
             `;
-            
+
             history = result.map(row => ({
                 sender_id: row.senderId,
                 content: row.message,
+                encryptedSymmetricKey: row.encryptedSymmetricKey,
                 timestamp: row.sentAt instanceof Date ? row.sentAt.toISOString() : row.sentAt.toString()
             }));
-            
+
             logger.info(`✅ Retrieved ${history.length} messages for room ${roomId}`);
-            
+
         } catch (error) {
             logger.error(`❌ Error fetching message history from database: ${error.message}`);
         }
@@ -440,7 +474,7 @@ io.on('connection', (socket) => {
     // Update user status
     socket.on('update_status', (data) => {
         logger.info(`🔄 Status update from ${userId}:`, data);
-        
+
         const status = data.status;
 
         if (!status || !['online', 'away', 'busy'].includes(status)) {

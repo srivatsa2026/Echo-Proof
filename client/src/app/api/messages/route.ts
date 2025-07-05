@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         const formattedMessages = messages.map((message: any) => ({
             id: message.id,
             message: message.message,
+            encryptedSymmetricKey: message.encryptedSymmetricKey, // Include encryption key
             sentAt: message.sentAt,
             chatroomId: message.chatroomId,
             senderId: message.senderId,
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { chatroomId, message } = await req.json();
+        const { chatroomId, message, encryptedSymmetricKey } = await req.json();
 
         if (!chatroomId || !message || message.trim() === "") {
             return NextResponse.json(
@@ -184,7 +185,8 @@ export async function POST(req: NextRequest) {
             data: {
                 chatroomId: chatroomId,
                 senderId: user.id,
-                message: message.trim()
+                message: message.trim(),
+                encryptedSymmetricKey: encryptedSymmetricKey || null
             },
             include: {
                 sender: {
