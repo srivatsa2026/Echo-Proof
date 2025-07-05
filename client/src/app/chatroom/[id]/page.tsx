@@ -153,16 +153,16 @@ export default function ChatroomPage() {
         }
 
         return {
-          id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
-          sender: msg.sender || {
-            id: msg.sender_id,
-            name: msg.sender_name || "Unknown User",
-            profileImage: msg.sender_profileImage,
-            smart_wallet_address: msg.sender_smartWalletAddress,
-            wallet_address: msg.sender_wallet_address
+          id: msg.id || `msg-${msg.sentAt}-${msg.senderId}`,
+          sender: {
+            id: msg.senderId || msg.sender?.id,
+            name: msg.sender?.name || "Unknown User",
+            profileImage: msg.sender?.profileImage,
+            smart_wallet_address: msg.sender?.smartWalletAddress,
+            wallet_address: msg.sender?.walletAddress
           },
           content: decryptedContent,
-          timestamp: new Date(msg.sentAt || msg.sent_at)
+          timestamp: new Date(msg.sentAt)
         };
       }));
 
@@ -422,7 +422,13 @@ export default function ChatroomPage() {
           }
 
           return {
-            ...msg,
+            id: msg.id || `msg-${msg.timestamp}-${msg.senderId || msg.sender_id}`,
+            sender: {
+              id: msg.senderId || msg.sender_id,
+              name: msg.sender?.name || msg.sender_name || "Unknown User",
+              smart_wallet_address: msg.sender?.smartWalletAddress || msg.sender_smartWalletAddress,
+              wallet_address: msg.sender?.walletAddress || msg.sender_wallet_address
+            },
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
           };
@@ -505,7 +511,13 @@ export default function ChatroomPage() {
         setMessages(prev => [
           ...prev,
           {
-            ...message,
+            id: message.id || `msg-${message.timestamp}-${message.senderId || message.sender_id}`,
+            sender: {
+              id: message.senderId || message.sender_id,
+              name: message.sender?.name || message.sender_name || "Unknown User",
+              smart_wallet_address: message.sender?.smartWalletAddress || message.sender_smartWalletAddress,
+              wallet_address: message.sender?.walletAddress || message.sender_wallet_address
+            },
             content: decryptedContent,
             timestamp: new Date(message.timestamp)
           }
@@ -560,10 +572,12 @@ export default function ChatroomPage() {
           }
 
           return {
-            id: `msg-${msg.timestamp}-${msg.sender_id}`,
+            id: `msg-${msg.timestamp}-${msg.senderId || msg.sender_id}`,
             sender: {
-              id: msg.sender_id,
-              name: "Unknown User", // We'll need to get user names separately
+              id: msg.senderId || msg.sender_id,
+              name: msg.sender?.name || msg.sender_name || "Unknown User",
+              smart_wallet_address: msg.sender?.smartWalletAddress || msg.sender_smartWalletAddress,
+              wallet_address: msg.sender?.walletAddress || msg.sender_wallet_address
             },
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
