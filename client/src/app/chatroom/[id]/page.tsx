@@ -131,16 +131,21 @@ export default function ChatroomPage() {
       }
       const data = await response.json();
 
+      // Debug: Log the raw data from API
+      console.log("🔍 Raw API response data:", data);
+
       // Decrypt messages if they're encrypted
       const formattedMessages = await Promise.all(data.map(async (msg: any) => {
-        let decryptedContent = msg.message || msg.message_text;
+        console.log("🔍 Processing message:", msg);
+
+        let decryptedContent = msg.message;
 
         // Check if message is encrypted
         if (msg.encryptedSymmetricKey) {
           try {
             const walletAddress = smart_wallet_address || wallet_address || "unknown";
             decryptedContent = await decryptMessage(
-              msg.message || msg.message_text,
+              msg.message,
               msg.encryptedSymmetricKey,
               chatroomId,
               wallet,
@@ -152,15 +157,10 @@ export default function ChatroomPage() {
           }
         }
 
+        // Use the exact format from API
         return {
-          id: msg.id || `msg-${msg.sentAt}-${msg.senderId}`,
-          sender: {
-            id: msg.senderId || msg.sender?.id,
-            name: msg.sender?.name || "Unknown User",
-            profileImage: msg.sender?.profileImage,
-            smart_wallet_address: msg.sender?.smartWalletAddress,
-            wallet_address: msg.sender?.walletAddress
-          },
+          id: msg.id,
+          sender: msg.sender,
           content: decryptedContent,
           timestamp: new Date(msg.sentAt)
         };
@@ -422,13 +422,8 @@ export default function ChatroomPage() {
           }
 
           return {
-            id: msg.id || `msg-${msg.timestamp}-${msg.senderId || msg.sender_id}`,
-            sender: {
-              id: msg.senderId || msg.sender_id,
-              name: msg.sender?.name || msg.sender_name || "Unknown User",
-              smart_wallet_address: msg.sender?.smartWalletAddress || msg.sender_smartWalletAddress,
-              wallet_address: msg.sender?.walletAddress || msg.sender_wallet_address
-            },
+            id: msg.id,
+            sender: msg.sender,
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
           };
@@ -511,13 +506,8 @@ export default function ChatroomPage() {
         setMessages(prev => [
           ...prev,
           {
-            id: message.id || `msg-${message.timestamp}-${message.senderId || message.sender_id}`,
-            sender: {
-              id: message.senderId || message.sender_id,
-              name: message.sender?.name || message.sender_name || "Unknown User",
-              smart_wallet_address: message.sender?.smartWalletAddress || message.sender_smartWalletAddress,
-              wallet_address: message.sender?.walletAddress || message.sender_wallet_address
-            },
+            id: message.id,
+            sender: message.sender,
             content: decryptedContent,
             timestamp: new Date(message.timestamp)
           }
@@ -528,23 +518,13 @@ export default function ChatroomPage() {
         setMessages(prev => [
           ...prev,
           {
-            ...message,
+            id: message.id,
+            sender: message.sender,
             content: "[Encrypted message - unable to decrypt]",
             timestamp: new Date(message.timestamp)
           }
         ])
       }
-    })
-
-    newSocket.on("message_sent", (message: any) => {
-      console.log("✅ Message sent confirmation:", message)
-
-      // Remove pending status from the message
-      setMessages(prev => prev.map(msg =>
-        msg.id === `msg-${new Date(message.timestamp).getTime()}-local`
-          ? { ...msg, pending: false, id: message.id }
-          : msg
-      ))
     })
 
     newSocket.on("history", async (data: { room: string, messages: any[] }) => {
@@ -572,13 +552,8 @@ export default function ChatroomPage() {
           }
 
           return {
-            id: `msg-${msg.timestamp}-${msg.senderId || msg.sender_id}`,
-            sender: {
-              id: msg.senderId || msg.sender_id,
-              name: msg.sender?.name || msg.sender_name || "Unknown User",
-              smart_wallet_address: msg.sender?.smartWalletAddress || msg.sender_smartWalletAddress,
-              wallet_address: msg.sender?.walletAddress || msg.sender_wallet_address
-            },
+            id: msg.id,
+            sender: msg.sender,
             content: decryptedContent,
             timestamp: new Date(msg.timestamp)
           };
@@ -1104,50 +1079,60 @@ export default function ChatroomPage() {
               )}
               {messages.length > 0 ? (
                 <>
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
-                    >
-                      {msg.sender?.id !== userId && (
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback>
-                            {msg.sender?.name
-                              ? msg.sender.name.charAt(0).toUpperCase()
-                              : "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
+                  {messages.map((msg) => {
+                    console.log("🔍 Rendering message:", {
+                      messageId: msg.id,
+                      senderId: msg.sender?.id,
+                      senderName: msg.sender?.name,
+                      userId: userId,
+                      isCurrentUser: msg.sender?.id === userId
+                    });
+
+                    return (
                       <div
-                        className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
+                        key={msg.id}
+                        className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-muted-foreground">
-                            {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {msg.timestamp ? formatTime(msg.timestamp) : ""}
-                          </span>
-                        </div>
+                        {msg.sender?.id !== userId && (
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback>
+                              {msg.sender?.name
+                                ? msg.sender.name.charAt(0).toUpperCase()
+                                : "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                         <div
-                          className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"}`}
+                          className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
                         >
-                          {msg.content || ""}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {msg.timestamp ? formatTime(msg.timestamp) : ""}
+                            </span>
+                          </div>
+                          <div
+                            className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"}`}
+                          >
+                            {msg.content || ""}
+                          </div>
                         </div>
+                        {msg.sender?.id === userId && (
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback>
+                              {msg.sender?.name
+                                ? msg.sender.name.charAt(0).toUpperCase()
+                                : "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                       </div>
-                      {msg.sender?.id === userId && (
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback>
-                            {msg.sender?.name
-                              ? msg.sender.name.charAt(0).toUpperCase()
-                              : "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-center">

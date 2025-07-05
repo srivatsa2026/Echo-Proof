@@ -73,28 +73,35 @@ export async function GET(req: NextRequest) {
             take: limit
         });
 
+        console.log("🔍 Raw messages from database:", messages);
+
         if (!messages || messages.length === 0) {
             return NextResponse.json([], { status: 200 });
         }
 
         // Format messages for response
-        const formattedMessages = messages.map((message: any) => ({
-            id: message.id,
-            message: message.message,
-            encryptedSymmetricKey: message.encryptedSymmetricKey, // Include encryption key
-            sentAt: message.sentAt,
-            chatroomId: message.chatroomId,
-            senderId: message.senderId,
-            sender: {
-                id: message.sender.id,
-                name: message.sender.name,
-                profileImage: message.sender.profileImage,
-                smartWalletAddress: message.sender.smartWalletAddress
-            },
-            chatroom: message.chatroom
-        }));
+        const formattedMessages = messages.map((message: any) => {
+            console.log("🔍 Processing message in API:", message);
+            console.log("🔍 Sender object in API:", message.sender);
 
-        console.log("Formatted messages:", formattedMessages);
+            return {
+                id: message.id,
+                message: message.message,
+                encryptedSymmetricKey: message.encryptedSymmetricKey, // Include encryption key
+                sentAt: message.sentAt,
+                chatroomId: message.chatroomId,
+                senderId: message.senderId,
+                sender: {
+                    id: message.sender.id,
+                    name: message.sender.name,
+                    profileImage: message.sender.profileImage,
+                    smartWalletAddress: message.sender.smartWalletAddress
+                },
+                chatroom: message.chatroom
+            };
+        });
+
+        console.log("🔍 Final formatted messages from API:", formattedMessages);
 
         return NextResponse.json(formattedMessages, { status: 200 });
     } catch (error: any) {
