@@ -104,7 +104,7 @@ export default function ChatroomPage() {
   console.log("is user loading:", isUserLoading)
 
   // Use username directly from Redux state
-  const username = usernameFromState && usernameFromState !== "Echo-Client" ? usernameFromState : (isUserLoading ? "Loading..." : "User")
+  const username = usernameFromState && usernameFromState !== "Echo-Client" ? usernameFromState : "User"
   const [isLoading, setIsLoading] = useState(true)
   const [isUsernameLoading, setIsUsernameLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -152,18 +152,11 @@ export default function ChatroomPage() {
           }
         }
 
-        // Determine if this message is from the current user
-        const isCurrentUserMessage = (
-          msg.sender_smartWalletAddress === smart_wallet_address ||
-          msg.sender_wallet_address === wallet_address ||
-          msg.sender_id === userId
-        );
-
         return {
           id: msg.id || `msg-${msg.sent_at}-${msg.sender_id}`,
           sender: msg.sender || {
             id: msg.sender_id,
-            name: isCurrentUserMessage ? username : (msg.sender_name || "Unknown User"),
+            name: msg.sender_name || "Unknown User",
             profileImage: msg.sender_profileImage,
             smart_wallet_address: msg.sender_smartWalletAddress,
             wallet_address: msg.sender_wallet_address
@@ -190,7 +183,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address, username, userId]);
+  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address]);
 
   // Initial load
   useEffect(() => {
@@ -220,16 +213,12 @@ export default function ChatroomPage() {
     if (usernameFromState && usernameFromState !== "Echo-Client") {
       console.log("🔄 Username loaded from Redux state:", usernameFromState);
       setIsUsernameLoading(false);
-    } else if (!isUserLoading) {
-      // If user data is not loading and we don't have a valid username, stop waiting
-      console.log("🔄 User data loaded but no valid username found");
-      setIsUsernameLoading(false);
     }
-  }, [usernameFromState, isUserLoading]);
+  }, [usernameFromState]);
 
   // Rejoin room when username changes (if already connected)
   useEffect(() => {
-    if (socket && connectionStatus === "connected" && username && username !== "Loading..." && username !== "unknown" && !isUsernameLoading) {
+    if (socket && connectionStatus === "connected" && username && username !== "User" && !isUsernameLoading) {
       console.log("🔄 Username changed, rejoining room as:", username);
       socket.emit("leave", { room: chatroomId });
       setTimeout(() => {
@@ -286,12 +275,12 @@ export default function ChatroomPage() {
       }
 
       // If username is already loaded, join immediately
-      if (!isUsernameLoading && username && username !== "Loading..." && username !== "unknown") {
+      if (!isUsernameLoading && username && username !== "User") {
         joinRoom();
       } else {
         // Wait for username to be loaded
         const checkUsername = setInterval(() => {
-          if (!isUsernameLoading && username && username !== "Loading..." && username !== "unknown") {
+          if (!isUsernameLoading && username && username !== "User") {
             clearInterval(checkUsername);
             joinRoom();
           }
@@ -300,7 +289,7 @@ export default function ChatroomPage() {
         // Clear interval after 5 seconds to prevent infinite waiting
         setTimeout(() => {
           clearInterval(checkUsername);
-          if (username && username !== "Loading..." && username !== "unknown") {
+          if (username && username !== "User") {
             joinRoom();
           }
         }, 5000);
@@ -1101,59 +1090,50 @@ export default function ChatroomPage() {
               )}
               {messages.length > 0 ? (
                 <>
-                  {messages.map((msg) => {
-                    // Check if this message is from the current user by comparing wallet addresses
-                    const isCurrentUser = (
-                      msg.sender?.smart_wallet_address === smart_wallet_address ||
-                      msg.sender?.wallet_address === wallet_address ||
-                      msg.sender?.id === userId
-                    );
-
-                    return (
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-3 ${msg.sender?.id === userId ? "justify-end" : "justify-start"}`}
+                    >
+                      {msg.sender?.id !== userId && (
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback>
+                            {msg.sender?.name
+                              ? msg.sender.name.charAt(0).toUpperCase()
+                              : "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                       <div
-                        key={msg.id}
-                        className={`flex gap-3 ${isCurrentUser ? "justify-end" : "justify-start"}`}
+                        className={`flex flex-col max-w-[70%] ${msg.sender?.id === userId ? "items-end" : "items-start"}`}
                       >
-                        {!isCurrentUser && (
-                          <Avatar className="h-8 w-8 flex-shrink-0">
-                            <AvatarFallback>
-                              {msg.sender?.name
-                                ? msg.sender.name.charAt(0).toUpperCase()
-                                : "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        <div
-                          className={`flex flex-col max-w-[70%] ${isCurrentUser ? "items-end" : "items-start"}`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs text-muted-foreground">
-                              {isCurrentUser ? "You" : (msg.sender?.name || "Unknown User")}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {msg.timestamp ? formatTime(msg.timestamp) : ""}
-                            </span>
-                          </div>
-                          <div
-                            className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${isCurrentUser
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"}`}
-                          >
-                            {msg.content || ""}
-                          </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-muted-foreground">
+                            {msg.sender?.id === userId ? "You" : (msg.sender?.name || "Unknown")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {msg.timestamp ? formatTime(msg.timestamp) : ""}
+                          </span>
                         </div>
-                        {isCurrentUser && (
-                          <Avatar className="h-8 w-8 flex-shrink-0">
-                            <AvatarFallback>
-                              {msg.sender?.name
-                                ? msg.sender.name.charAt(0).toUpperCase()
-                                : "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
+                        <div
+                          className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"}`}
+                        >
+                          {msg.content || ""}
+                        </div>
                       </div>
-                    );
-                  })}
+                      {msg.sender?.id === userId && (
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback>
+                            {msg.sender?.name
+                              ? msg.sender.name.charAt(0).toUpperCase()
+                              : "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ))}
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
