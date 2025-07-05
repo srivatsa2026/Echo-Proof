@@ -33,7 +33,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
             }
 
             dispatch(stateLogin({ wallet_address, smart_wallet_address }));
-            dispatch<any>(getUserDetails({ wallet_address, smart_wallet_address }));
+            dispatch<any>(getUserDetails());
         }, 5000); // wait for 5 seconds before running auth logic
 
         return () => clearTimeout(timeout); // clean up on unmount

@@ -98,12 +98,28 @@ export default function ChatroomPage() {
   const [socket, setSocket] = useState<Socket | null>(null)
 
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
- 
+
   const randomUsername = `User-${Math.floor(Math.random() * 10000)}`
   const usernameFromState = useSelector((state: any) => state.user.name)
   console.log("the user name from the state is ", usernameFromState)
-  const [username, setUsername] = useState(usernameFromState || randomUsername)
+
+  // Get username from localStorage as fallback
+  const getInitialUsername = () => {
+    if (usernameFromState && usernameFromState !== "Echo-Client") {
+      return usernameFromState;
+    }
+    if (typeof window !== 'undefined') {
+      const storedUsername = localStorage.getItem('chatUsername');
+      if (storedUsername) {
+        return storedUsername;
+      }
+    }
+    return randomUsername;
+  };
+
+  const [username, setUsername] = useState(getInitialUsername())
   const [isLoading, setIsLoading] = useState(true)
+  const [isUsernameLoading, setIsUsernameLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
@@ -187,7 +203,15 @@ export default function ChatroomPage() {
     setOffset(0);
     setHasMore(true);
     fetchMessages(0, false);
-    dispatch<any>(getUserDetails)
+    // Fetch user details
+    dispatch<any>(getUserDetails());
+
+    // Set a timeout to stop waiting for username after 3 seconds
+    const usernameTimeout = setTimeout(() => {
+      setIsUsernameLoading(false);
+    }, 3000);
+
+    return () => clearTimeout(usernameTimeout);
   }, [chatroomId, dispatch, fetchMessages]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -195,6 +219,36 @@ export default function ChatroomPage() {
       fetchMessages(offset, true);
     }
   };
+
+  // Update username when Redux state changes
+  useEffect(() => {
+    if (usernameFromState && usernameFromState !== "Echo-Client" && usernameFromState !== username) {
+      console.log("🔄 Updating username from Redux state:", usernameFromState);
+      setUsername(usernameFromState);
+      // Also save to localStorage for persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chatUsername', usernameFromState);
+      }
+    }
+    // Mark username as loaded once we have a valid state
+    if (usernameFromState && usernameFromState !== "Echo-Client") {
+      setIsUsernameLoading(false);
+    }
+  }, [usernameFromState, username]);
+
+  // Rejoin room when username changes (if already connected)
+  useEffect(() => {
+    if (socket && connectionStatus === "connected" && username && username !== "unknown" && !isUsernameLoading) {
+      console.log("🔄 Username changed, rejoining room as:", username);
+      socket.emit("leave", { room: chatroomId });
+      setTimeout(() => {
+        socket.emit("join", {
+          room: chatroomId,
+          username: username
+        });
+      }, 200);
+    }
+  }, [username, socket, connectionStatus, chatroomId, isUsernameLoading]);
 
   // useEffect(() => {
   //   const userId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
@@ -226,17 +280,40 @@ export default function ChatroomPage() {
       setConnectionStatus("connected")
       setIsLoading(false)
 
-      // Join the chatroom
-      console.log("🚪 Joining room:", chatroomId, "as", username)
-      newSocket.emit("join", {
-        room: chatroomId,
-        username: username
-      })
+      // Wait for username to be loaded before joining
+      const joinRoom = () => {
+        console.log("🚪 Joining room:", chatroomId, "as", username)
+        newSocket.emit("join", {
+          room: chatroomId,
+          username: username
+        })
 
-      // Request message history
-      newSocket.emit("get_history", {
-        room: chatroomId
-      })
+        // Request message history
+        newSocket.emit("get_history", {
+          room: chatroomId
+        })
+      }
+
+      // If username is already loaded, join immediately
+      if (!isUsernameLoading && username && username !== "unknown") {
+        joinRoom();
+      } else {
+        // Wait for username to be loaded
+        const checkUsername = setInterval(() => {
+          if (!isUsernameLoading && username && username !== "unknown") {
+            clearInterval(checkUsername);
+            joinRoom();
+          }
+        }, 100);
+
+        // Clear interval after 5 seconds to prevent infinite waiting
+        setTimeout(() => {
+          clearInterval(checkUsername);
+          if (username && username !== "unknown") {
+            joinRoom();
+          }
+        }, 5000);
+      }
 
       toast({
         title: "Connected",
@@ -869,7 +946,7 @@ export default function ChatroomPage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Encryption Test - Remove this in production */}
-     
+
 
       {/* Username Dialog */}
       <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>

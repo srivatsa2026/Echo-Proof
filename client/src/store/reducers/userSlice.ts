@@ -118,7 +118,7 @@ export const updateUserProfile = createAsyncThunk(
 // 📥 Get user details from Supabase
 export const getUserDetails = createAsyncThunk(
     "user/getUserDetails",
-    async ({ rejectWithValue }: any) => {
+    async (_, { rejectWithValue }) => {
         try {
             const response = await axios.get("/api/user", { withCredentials: true });
             console.log("the get reponsonse in the slice is ", response.data)

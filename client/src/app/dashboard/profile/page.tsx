@@ -42,10 +42,8 @@ export default function SettingsPage() {
 
   // Fetch user details
   useEffect(() => {
-    if (wallet_address && smart_wallet_address) {
-      dispatch<any>(getUserDetails({ wallet_address, smart_wallet_address }))
-    }
-  }, [dispatch, wallet_address, smart_wallet_address])
+    dispatch<any>(getUserDetails())
+  }, [dispatch])
 
   // Sync local state when redux state updates
   useEffect(() => {
