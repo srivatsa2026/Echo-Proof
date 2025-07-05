@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { useActiveWallet } from 'thirdweb/react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { stateLogin, getUserDetails } from "@/store/reducers/userSlice";
 
 interface AuthGuardProps {
@@ -13,13 +13,43 @@ interface AuthGuardProps {
 
 const AuthGuard = ({ children }: AuthGuardProps) => {
     const router = useRouter();
+    const pathname = usePathname();
     const dispatch = useDispatch();
     const activeWallet = useActiveWallet();
+    const [isAuthenticating, setIsAuthenticating] = useState(true);
+    const [authAttempts, setAuthAttempts] = useState(0);
+
+    // Check Redux state for existing authentication
+    const isAuthenticated = useSelector((state: any) => state.user.isAuthenticated);
+    const userWalletAddress = useSelector((state: any) => state.user.smart_wallet_address);
+
+    // Check if current path is public (doesn't require auth)
+    const isPublicPath = pathname === '/signin' || pathname === '/learn-more' || pathname === '/';
 
     useEffect(() => {
-        const timeout = setTimeout(() => {
+        console.log('AuthGuard: Pathname changed to:', pathname);
+        console.log('AuthGuard: Is public path:', isPublicPath);
+
+        // If it's a public path, don't check authentication
+        if (isPublicPath) {
+            console.log('AuthGuard: Public path, skipping auth check');
+            setIsAuthenticating(false);
+            return;
+        }
+
+        // If already authenticated in Redux state, skip auth check
+        if (isAuthenticated && userWalletAddress) {
+            console.log('AuthGuard: Already authenticated in Redux state');
+            setIsAuthenticating(false);
+            return;
+        }
+
+        const checkAuth = () => {
             const jwt = Cookies.get('jwt');
+            console.log('AuthGuard: Checking JWT:', !!jwt);
+
             if (!jwt) {
+                console.log('No JWT found, redirecting to signin');
                 router.push('/signin');
                 return;
             }
@@ -27,17 +57,55 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
             const wallet_address = activeWallet?.getAdminAccount?.()?.address;
             const smart_wallet_address = activeWallet?.getAccount()?.address;
 
+            console.log('AuthGuard: Wallet addresses:', {
+                hasActiveWallet: !!activeWallet,
+                wallet_address: wallet_address ? 'present' : 'missing',
+                smart_wallet_address: smart_wallet_address ? 'present' : 'missing'
+            });
+
             if (!wallet_address || !smart_wallet_address) {
-                router.push('/signin');
+                console.log('Wallet not connected, attempt:', authAttempts + 1);
+                setAuthAttempts(prev => prev + 1);
+
+                // Try again after a short delay, but limit attempts
+                if (authAttempts < 15) { // Increased attempts for slower connections
+                    setTimeout(checkAuth, 1500); // Increased delay
+                } else {
+                    console.log('Max auth attempts reached, redirecting to signin');
+                    router.push('/signin');
+                }
                 return;
             }
 
+            console.log('Authentication successful, wallet addresses:', { wallet_address, smart_wallet_address });
             dispatch(stateLogin({ wallet_address, smart_wallet_address }));
             dispatch<any>(getUserDetails());
-        }, 5000); // wait for 5 seconds before running auth logic
+            setIsAuthenticating(false);
+        };
 
-        return () => clearTimeout(timeout); // clean up on unmount
-    }, [activeWallet, dispatch, router]);
+        // Start authentication check with a small initial delay
+        const initialDelay = setTimeout(() => {
+            console.log('AuthGuard: Starting auth check after initial delay');
+            checkAuth();
+        }, 500);
+
+        // Cleanup function
+        return () => {
+            clearTimeout(initialDelay);
+            setIsAuthenticating(false);
+        };
+    }, [activeWallet, dispatch, router, pathname, authAttempts, isPublicPath, isAuthenticated, userWalletAddress]);
+
+    // Show loading state while authenticating
+    if (isAuthenticating && !isPublicPath) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-background">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                <h2 className="text-lg font-medium">Connecting wallet...</h2>
+                <p className="text-sm text-muted-foreground">Please wait while we establish your connection.</p>
+            </div>
+        );
+    }
 
     return <>{children}</>;
 };

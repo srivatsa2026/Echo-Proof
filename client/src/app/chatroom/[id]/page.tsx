@@ -99,25 +99,13 @@ export default function ChatroomPage() {
 
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
 
-  const randomUsername = `User-${Math.floor(Math.random() * 10000)}`
   const usernameFromState = useSelector((state: any) => state.user.name)
+  const isUserLoading = useSelector((state: any) => state.user.loading)
   console.log("the user name from the state is ", usernameFromState)
+  console.log("is user loading:", isUserLoading)
 
-  // Get username from localStorage as fallback
-  const getInitialUsername = () => {
-    if (usernameFromState && usernameFromState !== "Echo-Client") {
-      return usernameFromState;
-    }
-    if (typeof window !== 'undefined') {
-      const storedUsername = localStorage.getItem('chatUsername');
-      if (storedUsername) {
-        return storedUsername;
-      }
-    }
-    return randomUsername;
-  };
-
-  const [username, setUsername] = useState(getInitialUsername())
+  // Use username directly from Redux state
+  const username = usernameFromState && usernameFromState !== "Echo-Client" ? usernameFromState : (isUserLoading ? "Loading..." : "User")
   const [isLoading, setIsLoading] = useState(true)
   const [isUsernameLoading, setIsUsernameLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -220,25 +208,21 @@ export default function ChatroomPage() {
     }
   };
 
-  // Update username when Redux state changes
+  // Update username loading state when Redux state changes
   useEffect(() => {
-    if (usernameFromState && usernameFromState !== "Echo-Client" && usernameFromState !== username) {
-      console.log("🔄 Updating username from Redux state:", usernameFromState);
-      setUsername(usernameFromState);
-      // Also save to localStorage for persistence
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('chatUsername', usernameFromState);
-      }
-    }
-    // Mark username as loaded once we have a valid state
     if (usernameFromState && usernameFromState !== "Echo-Client") {
+      console.log("🔄 Username loaded from Redux state:", usernameFromState);
+      setIsUsernameLoading(false);
+    } else if (!isUserLoading) {
+      // If user data is not loading and we don't have a valid username, stop waiting
+      console.log("🔄 User data loaded but no valid username found");
       setIsUsernameLoading(false);
     }
-  }, [usernameFromState, username]);
+  }, [usernameFromState, isUserLoading]);
 
   // Rejoin room when username changes (if already connected)
   useEffect(() => {
-    if (socket && connectionStatus === "connected" && username && username !== "unknown" && !isUsernameLoading) {
+    if (socket && connectionStatus === "connected" && username && username !== "Loading..." && username !== "unknown" && !isUsernameLoading) {
       console.log("🔄 Username changed, rejoining room as:", username);
       socket.emit("leave", { room: chatroomId });
       setTimeout(() => {
@@ -295,12 +279,12 @@ export default function ChatroomPage() {
       }
 
       // If username is already loaded, join immediately
-      if (!isUsernameLoading && username && username !== "unknown") {
+      if (!isUsernameLoading && username && username !== "Loading..." && username !== "unknown") {
         joinRoom();
       } else {
         // Wait for username to be loaded
         const checkUsername = setInterval(() => {
-          if (!isUsernameLoading && username && username !== "unknown") {
+          if (!isUsernameLoading && username && username !== "Loading..." && username !== "unknown") {
             clearInterval(checkUsername);
             joinRoom();
           }
@@ -309,7 +293,7 @@ export default function ChatroomPage() {
         // Clear interval after 5 seconds to prevent infinite waiting
         setTimeout(() => {
           clearInterval(checkUsername);
-          if (username && username !== "unknown") {
+          if (username && username !== "Loading..." && username !== "unknown") {
             joinRoom();
           }
         }, 5000);
@@ -872,10 +856,8 @@ export default function ChatroomPage() {
     if (!tempUsername.trim()) return
 
     const newUsername = tempUsername.trim()
-    setUsername(newUsername)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('chatUsername', newUsername)
-    }
+
+    // Update Redux state - username will automatically update from state
     dispatch<any>(updateUserProfile({ name: newUsername, email: undefined, toast }))
     setShowUsernameDialog(false)
 
@@ -887,10 +869,12 @@ export default function ChatroomPage() {
     // If connected, rejoin to update username
     if (socket && connectionStatus === "connected") {
       socket.emit("leave", { room: chatroomId })
-      socket.emit("join", {
-        room: chatroomId,
-        username: newUsername
-      })
+      setTimeout(() => {
+        socket.emit("join", {
+          room: chatroomId,
+          username: newUsername
+        })
+      }, 200)
     }
   }
 
