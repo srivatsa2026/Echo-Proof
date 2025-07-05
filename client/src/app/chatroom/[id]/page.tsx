@@ -1053,11 +1053,7 @@ export default function ChatroomPage() {
                           <span className="text-xs text-muted-foreground">
                             {msg.timestamp ? formatTime(msg.timestamp) : ""}
                           </span>
-                          {msg.pending && (
-                            <span className="text-xs text-muted-foreground italic">
-                              sending...
-                            </span>
-                          )}
+                         
                         </div>
                         <div
                           className={`rounded-lg px-4 py-2 break-words whitespace-pre-wrap ${msg.sender?.id === userId
