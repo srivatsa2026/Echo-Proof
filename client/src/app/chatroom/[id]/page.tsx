@@ -185,6 +185,7 @@ export default function ChatroomPage() {
       } else {
         setMessages(formattedMessages);
       }
+
       setHasMore(data.length === MESSAGE_LIMIT);
       setOffset(fetchOffset + data.length);
     } catch (error) {
