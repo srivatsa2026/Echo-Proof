@@ -25,9 +25,16 @@ const logger = winston.createLogger({
 const app = express();
 const server = createServer(app);
 
+
+
+const allowedOrigins = [
+    "https://echo-proof.vercel.app", // production
+    "http://localhost:3000"          // dev
+];
+
 // Configure CORS
 app.use(cors({
-    origin: "*",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
 }));
@@ -36,10 +43,6 @@ app.use(cors({
 app.use(express.json());
 
 // Create Socket.IO server with more explicit configuration
-const allowedOrigins = [
-    "https://echo-proof.vercel.app", // production
-    "http://localhost:3000"          // dev
-];
 
 const io = new Server(server, {
     cors: {

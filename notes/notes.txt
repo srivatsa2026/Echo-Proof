@@ -1,0 +1,95 @@
+contract UserNotesRegistry is Ownable, Pausable, EchoProofEvents {
+    using Counters for Counters.Counter;
+    
+    struct Note {
+        uint256 meetingId;
+        address author;
+        string ipfsSummaryHash;
+        uint256 createdAt;
+        uint256 updatedAt;
+        string noteType; // "summary", "transcript", "action_items", etc.
+    }
+    
+    mapping(uint256 => Note[]) public meetingNotes;
+    mapping(address => uint256) public noteCountByAuthor;
+    
+    ISubscriptionManager public subscriptionManager;
+    
+    constructor(address _subscriptionManager) {
+        subscriptionManager = ISubscriptionManager(_subscriptionManager);
+    }
+    
+    function addNote(
+        uint256 meetingId,
+        string memory ipfsSummaryHash,
+        string memory noteType
+    ) external whenNotPaused {
+        require(subscriptionManager.isProUser(msg.sender), "Pro subscription required");
+        require(bytes(ipfsSummaryHash).length > 0, "IPFS hash cannot be empty");
+        
+        Note memory newNote = Note({
+            meetingId: meetingId,
+            author: msg.sender,
+            ipfsSummaryHash: ipfsSummaryHash,
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            noteType: noteType
+        });
+        
+        meetingNotes[meetingId].push(newNote);
+        noteCountByAuthor[msg.sender]++;
+        
+        emit NoteAdded(meetingId, msg.sender, ipfsSummaryHash);
+    }
+    
+    function updateNote(
+        uint256 meetingId,
+        uint256 noteIndex,
+        string memory newIpfsHash
+    ) external whenNotPaused {
+        require(noteIndex < meetingNotes[meetingId].length, "Note does not exist");
+        require(meetingNotes[meetingId][noteIndex].author == msg.sender, "Not the author");
+        
+        meetingNotes[meetingId][noteIndex].ipfsSummaryHash = newIpfsHash;
+        meetingNotes[meetingId][noteIndex].updatedAt = block.timestamp;
+        
+        emit NoteUpdated(meetingId, noteIndex, newIpfsHash);
+    }
+    
+    function getMeetingNotes(uint256 meetingId) external view returns (Note[] memory) {
+        return meetingNotes[meetingId];
+    }
+    
+    function getNotesByType(uint256 meetingId, string memory noteType) external view returns (Note[] memory) {
+        Note[] memory allNotes = meetingNotes[meetingId];
+        uint256 count = 0;
+        
+        // Count matching notes
+        for (uint256 i = 0; i < allNotes.length; i++) {
+            if (keccak256(bytes(allNotes[i].noteType)) == keccak256(bytes(noteType))) {
+                count++;
+            }
+        }
+        
+        // Create result array
+        Note[] memory result = new Note[](count);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < allNotes.length; i++) {
+            if (keccak256(bytes(allNotes[i].noteType)) == keccak256(bytes(noteType))) {
+                result[index] = allNotes[i];
+                index++;
+            }
+        }
+        
+        return result;
+    }
+    
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+}
