@@ -232,428 +232,181 @@ export default function ChatroomPage() {
   }, [username, socket, connectionStatus, chatroomId]);
 
   // --- NEW SOCKET CONNECTION LOGIC ---
-  const chatSocket = getSocket();
-  if (!chatSocket) {
-    setError("No socket connection found. Please join the chatroom again.");
-    setIsLoading(false);
-    return;
-  }
-  setSocket(chatSocket);
-  setConnectionStatus(chatSocket.connected ? "connected" : "connecting");
+  useEffect(() => {
+    const chatSocket = getSocket();
+    if (!chatSocket) {
+      setError("No socket connection found. Please join the chatroom again.");
+      setIsLoading(false);
+      return;
+    }
+    setSocket(chatSocket);
+    setConnectionStatus(chatSocket.connected ? "connected" : "connecting");
 
-  const handleConnect = () => {
-    setConnectionStatus("connected");
-    setIsLoading(false);
-    // Join the room
-    chatSocket.emit("join", {
-      room: chatroomId,
-      username: username
-    });
-    // Request message history
-    chatSocket.emit("get_history", {
-      room: chatroomId
-    });
-    toast({
-      title: "Connected",
-      description: "You are now connected to the chat server.",
-    });
-  };
-  const handleConnectError = (err: unknown) => {
-    setConnectionStatus("disconnected");
-    setIsLoading(false);
-    setError("Failed to connect to the chat server. Please try again later.");
-    toast({
-      title: "Connection Error",
-      description: `Failed to connect: ${err && typeof err === 'object' && 'message' in err ? (err as any).message : 'Unknown error'}`,
-      variant: "destructive",
-    });
-  };
-  const handleDisconnect = (reason: unknown) => {
-    setConnectionStatus("disconnected");
-    toast({
-      title: "Disconnected",
-      description: reason === "io server disconnect"
-        ? "You have been disconnected from the server."
-        : "Connection lost. Attempting to reconnect...",
-      variant: "destructive",
-    });
-  };
-  chatSocket.on("connect", handleConnect);
-  chatSocket.on("connect_error", handleConnectError);
-  chatSocket.on("disconnect", handleDisconnect);
+    const handleConnect = () => {
+      setConnectionStatus("connected");
+      setIsLoading(false);
+      // Join the room
+      chatSocket.emit("join", {
+        room: chatroomId,
+        username: username
+      });
+      // Request message history
+      chatSocket.emit("get_history", {
+        room: chatroomId
+      });
+      toast({
+        title: "Connected",
+        description: "You are now connected to the chat server.",
+      });
+    };
+    const handleConnectError = (err: unknown) => {
+      setConnectionStatus("disconnected");
+      setIsLoading(false);
+      setError("Failed to connect to the chat server. Please try again later.");
+      toast({
+        title: "Connection Error",
+        description: `Failed to connect: ${err && typeof err === 'object' && 'message' in err ? (err as any).message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    };
+    const handleDisconnect = (reason: unknown) => {
+      setConnectionStatus("disconnected");
+      toast({
+        title: "Disconnected",
+        description: reason === "io server disconnect"
+          ? "You have been disconnected from the server."
+          : "Connection lost. Attempting to reconnect...",
+        variant: "destructive",
+      });
+    };
+    chatSocket.on("connect", handleConnect);
+    chatSocket.on("connect_error", handleConnectError);
+    chatSocket.on("disconnect", handleDisconnect);
 
-  chatSocket.on("reconnect", (attemptNumber: number) => {
-    console.log("🔄 Reconnected after", attemptNumber, "attempts")
-    setConnectionStatus("connected")
-
-    toast({
-      title: "Reconnected",
-      description: "You have been reconnected to the chat server.",
-    })
-
-    // Rejoin the room
-    chatSocket.emit("join", {
-      room: chatroomId,
-      username: username
-    })
-  })
-
-  chatSocket.on("reconnect_failed", () => {
-    console.error("❌ Failed to reconnect")
-    setError("Failed to reconnect to the server. Please refresh the page.")
-    toast({
-      title: "Reconnection Failed",
-      description: "Unable to reconnect to the server. Please refresh the page.",
-      variant: "destructive",
-    })
-  })
-
-  // Socket event handlers
-  chatSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
-    console.log("📡 Connection status:", data)
-
-    // Additional confirmation that we're connected
-    if (data.status === 'connected') {
+    chatSocket.on("reconnect", (attemptNumber: number) => {
+      console.log("🔄 Reconnected after", attemptNumber, "attempts")
       setConnectionStatus("connected")
-    }
-  })
 
-  chatSocket.on("error", (data: { message: string }) => {
-    console.error("⚠️ Server error:", data.message)
-    toast({
-      title: "Error",
-      description: data.message,
-      variant: "destructive",
-    })
-  })
-
-  chatSocket.on("join_success", async (data: { participants: Participant[], history?: any[], roomId: string }) => {
-    console.log("✅ Join success:", data)
-
-    // Set participants list (mark current user)
-    const updatedParticipants = data.participants.map((participant: Participant) => ({
-      ...participant,
-      isCurrentUser: participant.id === chatSocket.id
-    }))
-
-    // Add current user if not in the list
-    const currentUserExists = updatedParticipants.some(p => p.id === chatSocket.id)
-    if (!currentUserExists) {
-      updatedParticipants.push({
-        id: chatSocket.id || "unknown-id",
-        name: username || "unknown",
-        status: "online",
-        isCurrentUser: true
+      toast({
+        title: "Reconnected",
+        description: "You have been reconnected to the chat server.",
       })
-    }
 
-    setParticipants(updatedParticipants)
-
-    // Load message history if available
-    if (data.history && Array.isArray(data.history)) {
-      const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
-        let decryptedContent = msg.content || msg.message;
-
-        // Check if message is encrypted
-        if (msg.encryptedSymmetricKey) {
-          try {
-            const walletAddress = smart_wallet_address || wallet_address || "unknown";
-            decryptedContent = await decryptMessage(
-              msg.content || msg.message,
-              msg.encryptedSymmetricKey,
-              chatroomId,
-              wallet,
-              walletAddress
-            );
-          } catch (error) {
-            console.error('Error decrypting history message:', error);
-            decryptedContent = "[Encrypted message - unable to decrypt]";
-          }
-        }
-
-        // Handle both old and new sender formats
-        let sender = msg.sender;
-        if (!sender && msg.sender_id) {
-          // Old format: convert sender_id to sender object
-          sender = {
-            id: msg.sender_id,
-            name: "Unknown User",
-            smart_wallet_address: undefined,
-            wallet_address: undefined
-          };
-        }
-
-        // Ensure sender object has all required fields
-        if (sender) {
-          sender = {
-            id: sender.id,
-            name: sender.name || "Unknown User",
-            smart_wallet_address: sender.smart_wallet_address,
-            wallet_address: sender.wallet_address
-          };
-        }
-
-        return {
-          id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-          sender: sender,
-          content: decryptedContent,
-          timestamp: new Date(msg.timestamp)
-        };
-      }));
-      console.log("📚 Loading", historyMessages.length, "messages from history")
-      setMessages(historyMessages)
-    }
-
-    toast({
-      title: "Joined Room",
-      description: `You have joined the chatroom: ${chatroomId}`,
+      // Rejoin the room
+      chatSocket.emit("join", {
+        room: chatroomId,
+        username: username
+      })
     })
-  })
 
-  chatSocket.on("user_joined", (data: { username: string, participants: Participant[] }) => {
-    console.log("👤 User joined:", data)
+    chatSocket.on("reconnect_failed", () => {
+      console.error("❌ Failed to reconnect")
+      setError("Failed to reconnect to the server. Please refresh the page.")
+      toast({
+        title: "Reconnection Failed",
+        description: "Unable to reconnect to the server. Please refresh the page.",
+        variant: "destructive",
+      })
+    })
 
-    // Update participants list
-    if (data.participants) {
-      const updatedParticipants = data.participants.map(participant => ({
+    // Socket event handlers
+    chatSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
+      console.log("📡 Connection status:", data)
+
+      // Additional confirmation that we're connected
+      if (data.status === 'connected') {
+        setConnectionStatus("connected")
+      }
+    })
+
+    chatSocket.on("error", (data: { message: string }) => {
+      console.error("⚠️ Server error:", data.message)
+      toast({
+        title: "Error",
+        description: data.message,
+        variant: "destructive",
+      })
+    })
+
+    chatSocket.on("join_success", async (data: { participants: Participant[], history?: any[], roomId: string }) => {
+      console.log("✅ Join success:", data)
+
+      // Set participants list (mark current user)
+      const updatedParticipants = data.participants.map((participant: Participant) => ({
         ...participant,
         isCurrentUser: participant.id === chatSocket.id
       }))
 
-      setParticipants(updatedParticipants)
-    }
-
-    toast({
-      title: "User Joined",
-      description: `${data.username} has joined the room.`,
-    })
-  })
-
-  chatSocket.on("user_left", (data: { username: string, participants: Participant[] }) => {
-    console.log("👤 User left:", data)
-
-    // Update participants list
-    if (data.participants) {
-      const updatedParticipants = data.participants.map(participant => ({
-        ...participant,
-        isCurrentUser: participant.id === chatSocket.id
-      }))
-
-      setParticipants(updatedParticipants)
-    }
-
-    toast({
-      title: "User Left",
-      description: `${data.username} has left the room.`,
-    })
-  })
-
-  chatSocket.on("leave_success", (data: any) => {
-    console.log("🚪 Leave success:", data)
-    toast({
-      title: "Left Room",
-      description: `You have left the chatroom.`,
-    })
-  })
-
-  chatSocket.on("message_received", async (message: any) => {
-    console.log("📨 Message received:", message)
-
-    try {
-      // Decrypt the message if it's encrypted
-      let decryptedContent = message.content
-      if (message.encryptedSymmetricKey) {
-        const walletAddress = smart_wallet_address || wallet_address || "unknown"
-
-        decryptedContent = await decryptMessage(
-          message.content,
-          message.encryptedSymmetricKey,
-          chatroomId,
-          wallet,
-          walletAddress
-        )
+      // Add current user if not in the list
+      const currentUserExists = updatedParticipants.some(p => p.id === chatSocket.id)
+      if (!currentUserExists) {
+        updatedParticipants.push({
+          id: chatSocket.id || "unknown-id",
+          name: username || "unknown",
+          status: "online",
+          isCurrentUser: true
+        })
       }
 
-      // Check if this is our own message to prevent duplicates
-      const isOwnMessage = message.sender?.id === userId ||
-        (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
-        (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+      setParticipants(updatedParticipants)
 
-      console.log("📨 Message ownership check:", {
-        messageId: message.id,
-        senderId: message.sender?.id,
-        userId: userId,
-        isOwnMessage: isOwnMessage
-      });
+      // Load message history if available
+      if (data.history && Array.isArray(data.history)) {
+        const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
+          let decryptedContent = msg.content || msg.message;
 
-      // Add received message to messages with decrypted content
-      setMessages(prev => {
-        // Check if this is our own message and we have a pending local message
-        const isOwnMessage = message.sender?.id === userId ||
-          (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
-          (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
-
-        if (isOwnMessage) {
-          // Replace pending local message with server-confirmed message
-          const hasPendingMessage = prev.some(msg => msg.pending && msg.content === decryptedContent);
-          if (hasPendingMessage) {
-            console.log("📨 Replacing pending message with server confirmation:", message.id);
-            return prev.map(msg =>
-              msg.pending && msg.content === decryptedContent
-                ? {
-                  id: message.id,
-                  sender: message.sender,
-                  content: decryptedContent,
-                  timestamp: new Date(message.timestamp),
-                  pending: false
-                }
-                : msg
-            );
+          // Check if message is encrypted
+          if (msg.encryptedSymmetricKey) {
+            try {
+              const walletAddress = smart_wallet_address || wallet_address || "unknown";
+              decryptedContent = await decryptMessage(
+                msg.content || msg.message,
+                msg.encryptedSymmetricKey,
+                chatroomId,
+                wallet,
+                walletAddress
+              );
+            } catch (error) {
+              console.error('Error decrypting history message:', error);
+              decryptedContent = "[Encrypted message - unable to decrypt]";
+            }
           }
-        }
 
-        // Check if message already exists (to prevent duplicates)
-        const messageExists = prev.some(existingMsg =>
-          existingMsg.id === message.id ||
-          (existingMsg.sender?.id === message.sender?.id &&
-            existingMsg.content === decryptedContent &&
-            Math.abs(existingMsg.timestamp.getTime() - new Date(message.timestamp).getTime()) < 1000) // Within 1 second
-        );
+          // Handle both old and new sender formats
+          let sender = msg.sender;
+          if (!sender && msg.sender_id) {
+            // Old format: convert sender_id to sender object
+            sender = {
+              id: msg.sender_id,
+              name: "Unknown User",
+              smart_wallet_address: undefined,
+              wallet_address: undefined
+            };
+          }
 
-        if (messageExists) {
-          console.log("📨 Skipping duplicate message:", message.id);
-          return prev;
-        }
-
-        return [
-          ...prev,
-          {
-            id: message.id,
-            sender: message.sender,
+          return {
+            id: msg.id,
+            sender: sender,
             content: decryptedContent,
-            timestamp: new Date(message.timestamp)
-          }
-        ];
-      });
-    } catch (error) {
-      console.error("❌ Error decrypting message:", error)
-      // Add message with encrypted content if decryption fails
-      setMessages(prev => [
-        ...prev,
-        {
-          id: message.id,
-          sender: message.sender,
-          content: "[Encrypted message - unable to decrypt]",
-          timestamp: new Date(message.timestamp)
-        }
-      ])
-    }
-  })
-
-  chatSocket.on("history", async (data: { room: string, messages: any[] }) => {
-    console.log("📚 History received:", data)
-
-    if (data.messages && Array.isArray(data.messages)) {
-      const historyMessages = await Promise.all(data.messages.map(async (msg: any) => {
-        let decryptedContent = msg.content || msg.message;
-
-        // Check if message is encrypted
-        if (msg.encryptedSymmetricKey) {
-          try {
-            const walletAddress = smart_wallet_address || wallet_address || "unknown";
-            decryptedContent = await decryptMessage(
-              msg.content || msg.message,
-              msg.encryptedSymmetricKey,
-              chatroomId,
-              wallet,
-              walletAddress
-            );
-          } catch (error) {
-            console.error('Error decrypting history message:', error);
-            decryptedContent = "[Encrypted message - unable to decrypt]";
-          }
-        }
-
-        // Handle both old and new sender formats
-        let sender = msg.sender;
-        if (!sender && msg.sender_id) {
-          // Old format: convert sender_id to sender object
-          sender = {
-            id: msg.sender_id,
-            name: "Unknown User",
-            smart_wallet_address: undefined,
-            wallet_address: undefined
+            timestamp: new Date(msg.sentAt || msg.timestamp)
           };
-        }
+        }))
+        setMessages(historyMessages)
+      }
+    })
 
-        // Ensure sender object has all required fields
-        if (sender) {
-          sender = {
-            id: sender.id,
-            name: sender.name || "Unknown User",
-            smart_wallet_address: sender.smart_wallet_address,
-            wallet_address: sender.wallet_address
-          };
-        }
-
-        return {
-          id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-          sender: sender,
-          content: decryptedContent,
-          timestamp: new Date(msg.timestamp)
-        };
-      }));
-
-      console.log("📚 Loaded", historyMessages.length, "messages from history")
-      setMessages(historyMessages)
+    // Clean up listeners on unmount
+    return () => {
+      chatSocket.off("connect", handleConnect);
+      chatSocket.off("connect_error", handleConnectError);
+      chatSocket.off("disconnect", handleDisconnect);
+      chatSocket.off("reconnect");
+      chatSocket.off("reconnect_failed");
+      chatSocket.off("connection_status");
+      chatSocket.off("error");
+      chatSocket.off("join_success");
     }
-  })
-
-  chatSocket.on("participants_list", (data: { participants: Participant[] }) => {
-    console.log("👥 Participants list:", data)
-
-    // Update participants
-    if (data.participants) {
-      const updatedParticipants = data.participants.map(participant => ({
-        ...participant,
-        isCurrentUser: participant.id === chatSocket.id
-      }))
-
-      setParticipants(updatedParticipants)
-    }
-  })
-
-  chatSocket.on("status_updated", (data: { participants: Participant[] }) => {
-    console.log("🔄 Status updated:", data)
-
-    // Update participants list with new status
-    if (data.participants) {
-      const updatedParticipants = data.participants.map(participant => ({
-        ...participant,
-        isCurrentUser: participant.id === chatSocket.id
-      }))
-
-      setParticipants(updatedParticipants)
-    }
-  })
-
-  // Debug: Log all events
-  chatSocket.onAny((event, ...args) => {
-    console.log(`🔍 Event '${event}' received:`, args)
-  })
-
-  // On mount, if already connected, join the room
-  if (chatSocket.connected) {
-    handleConnect();
-  }
-
-  return () => {
-    chatSocket.off("connect", handleConnect);
-    chatSocket.off("connect_error", handleConnectError);
-    chatSocket.off("disconnect", handleDisconnect);
-    // ... (remove other event listeners as needed)
-  }
-  // --- END NEW SOCKET CONNECTION LOGIC ---
+  }, [chatroomId, username, wallet, smart_wallet_address, wallet_address, toast]);
 
   const sendMessage = async () => {
     if (!message.trim() || !socket || connectionStatus !== "connected") {
