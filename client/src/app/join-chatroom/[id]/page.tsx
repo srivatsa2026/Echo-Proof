@@ -15,10 +15,11 @@ import { Separator } from "@/components/ui/separator"
 import { MessageCircle, Hash, ArrowRight, Users, Globe, Lock, Activity, Loader2 } from "lucide-react"
 import { useDispatch, useSelector } from "react-redux"
 import { checkJoinChatroom, joinChatroom } from "@/store/reducers/chatroomSlice"
-import { getUserDetails } from "@/store/reducers/userSlice"
+import { getUserDetails, updateUserProfile } from "@/store/reducers/userSlice"
 import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
 import { getSocket } from "@/lib/socket/chatroom-socket"
+import { useToast } from "@/hooks/use-toast"
 
 interface ChatroomDetails {
     id: string
@@ -131,11 +132,15 @@ export default function JoinChatroomPage() {
         }
     }, [username, chatroomId])
 
+    const { toast } = useToast();
+
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!username.trim()) return
         setIsJoining(true)
         try {
+            // Update user profile with the chosen username
+            await dispatch<any>(updateUserProfile({ name: username, toast })).unwrap()
             // Initiate socket connection with username
             getSocket(username)
             await dispatch<any>(joinChatroom({ roomId: chatroomId })).unwrap()

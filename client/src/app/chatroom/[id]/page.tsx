@@ -899,7 +899,7 @@ export default function ChatroomPage() {
         }}>
           Retry Connection
         </Button>
-        <Button variant="outline" className="mt-2" onClick={() => router.push("/dashboard")}>Return to Dashboard</Button>
+        <Button variant="outline" className="mt-2" onClick={() => router.push(`/join-chatroom/${chatroomId}`)}>Return to Joining page</Button>
       </div>
     )
   }
