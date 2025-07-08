@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { MessageCircle, Hash, ArrowRight, Users, Globe, Lock, Activity, Loader2 } from "lucide-react"
 import { useDispatch, useSelector } from "react-redux"
 import { checkJoinChatroom, joinChatroom } from "@/store/reducers/chatroomSlice"
+import { getUserDetails } from "@/store/reducers/userSlice"
 import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
 import { connectSocket, getSocket } from "@/lib/socket/chatroom-socket"
@@ -46,6 +47,13 @@ export default function JoinChatroomPage() {
     const user = useSelector((state: any) => state.user)
     const { loading, error, title, active, tokenGated, tokenAddress, tokenStandard, userStatus, members = [] } = chatroom
     const { isAuthenticated } = user
+
+    // Ensure user details are loaded if not authenticated
+    useEffect(() => {
+        if (!isAuthenticated) {
+            dispatch<any>(getUserDetails())
+        }
+    }, [isAuthenticated, dispatch])
 
     // Check for 'jwt' cookie
     const [hasJwt, setHasJwt] = useState(false)

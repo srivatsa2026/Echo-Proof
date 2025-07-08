@@ -12,10 +12,13 @@ import {
 import { createWallet } from "thirdweb/wallets";
 import { sepolia } from "thirdweb/chains";
 import { useState } from "react";
+import { useDispatch } from "react-redux";
+import { getUserDetails } from "@/store/reducers/userSlice";
 
 export default function ConnectionButton({ path }: { path?: string }) {
     const wallets = [createWallet("io.metamask")];
     const router = useRouter();
+    const dispatch = useDispatch();
 
     return (
         <ConnectButton
@@ -34,6 +37,7 @@ export default function ConnectionButton({ path }: { path?: string }) {
                 },
                 doLogin: async (params) => {
                     await login(params);
+                    await dispatch<any>(getUserDetails());
                     if (path) {
                         router.push(`/${path}`);
                     }
