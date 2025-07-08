@@ -3,11 +3,12 @@ import { io, Socket } from "socket.io-client"
 
 let socket: Socket | null = null;
 
-export function connectSocket(username: string) {
-    if (!socket) {
+export function getSocket(username: string) {
+    // If no socket or socket is disconnected, create a new one
+    if (!socket || socket.disconnected) {
         socket = io(process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050", {
             transports: ["websocket", "polling"],
-            autoConnect: false,
+            autoConnect: true,
             auth: { username },
             reconnection: true,
             reconnectionAttempts: 5,
@@ -15,12 +16,7 @@ export function connectSocket(username: string) {
             timeout: 10000,
             forceNew: true,
         });
-        socket.connect();
     }
-    return socket;
-}
-
-export function getSocket() {
     return socket;
 }
 

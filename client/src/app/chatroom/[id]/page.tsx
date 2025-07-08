@@ -239,7 +239,7 @@ export default function ChatroomPage() {
     let retryTimeout: NodeJS.Timeout | null = null;
 
     const tryConnect = () => {
-      const chatSocket = getSocket();
+      const chatSocket = getSocket(username);
       if (!chatSocket) {
         if (retryCount < MAX_RETRIES) {
           retryTimeout = setTimeout(() => {
