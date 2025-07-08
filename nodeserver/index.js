@@ -94,45 +94,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Test database insertion endpoint
-app.post('/test-insert', async (req, res) => {
-    try {
-        const testMessageId = uuidv4();
-        const testRoomId = 'test-room-' + Date.now();
-        const testUserId = 'test-user-' + Date.now();
-        const testMessage = 'test message';
-        const testEncryptionKey = 'test-encryption-key-' + Date.now();
-        const testTimestamp = new Date().toISOString();
-
-        logger.info('Testing database insertion with encryption key:', testEncryptionKey);
-
-        const result = await sql`
-            INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "encryptedSymmetricKey", "sentAt") 
-            VALUES (${testMessageId}, ${testRoomId}, ${testUserId}, ${testMessage}, ${testEncryptionKey}, ${testTimestamp})
-        `;
-
-        // Verify the insertion by reading it back
-        const verifyResult = await sql`
-            SELECT "encryptedSymmetricKey" FROM chat_messages WHERE id = ${testMessageId}
-        `;
-
-        logger.info('Verification result:', verifyResult[0]);
-
-        res.json({
-            success: true,
-            message: 'Test insertion successful',
-            insertedKey: testEncryptionKey,
-            retrievedKey: verifyResult[0]?.encryptedSymmetricKey,
-            keysMatch: testEncryptionKey === verifyResult[0]?.encryptedSymmetricKey
-        });
-    } catch (error) {
-        logger.error('Test insertion failed:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
 
 // Helper function to get room participants
 function getRoomParticipants(roomId) {
@@ -489,10 +450,12 @@ io.on('connection', (socket) => {
                 FROM chat_messages cm
                 LEFT JOIN users u ON cm."senderId" = u.id
                 WHERE cm."chatroomId" = ${roomId} 
-                ORDER BY cm."sentAt" ASC
+                ORDER BY cm."sentAt" DESC
+                LIMIT 20
             `;
 
-            history = result.map(row => ({
+            // Reverse to chronological order (oldest first)
+            history = result.reverse().map(row => ({
                 id: row.id,
                 sender: {
                     id: row.senderId,
