@@ -36,14 +36,19 @@ app.use(cors({
 app.use(express.json());
 
 // Create Socket.IO server with more explicit configuration
+const allowedOrigins = [
+    "https://echo-proof.vercel.app", // production
+    "http://localhost:3000"          // dev
+];
+
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true
     },
-    allowEIO3: true,
-    transports: ['websocket', 'polling']
+    allowEIO3: true, // backward compat if needed
+    transports: ["websocket", "polling"]
 });
 
 // In-memory storage
