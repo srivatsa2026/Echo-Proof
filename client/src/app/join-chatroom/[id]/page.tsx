@@ -18,7 +18,7 @@ import { checkJoinChatroom, joinChatroom } from "@/store/reducers/chatroomSlice"
 import { getUserDetails } from "@/store/reducers/userSlice"
 import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
-import { connectSocket, getSocket } from "@/lib/socket/chatroom-socket"
+import { getSocket } from "@/lib/socket/chatroom-socket"
 
 interface ChatroomDetails {
     id: string
@@ -74,7 +74,7 @@ export default function JoinChatroomPage() {
     useEffect(() => {
         let socket: any = null;
         if (username) {
-            socket = connectSocket(username);
+            socket = getSocket(username);
             // Listen for join_success (initial join)
             socket.on("join_success", (data: { participants: any[] }) => {
                 if (data && Array.isArray(data.participants)) {
@@ -116,7 +116,7 @@ export default function JoinChatroomPage() {
         setIsJoining(true)
         try {
             // Initiate socket connection with username
-            connectSocket(username)
+            getSocket(username)
             await dispatch<any>(joinChatroom({ roomId: chatroomId })).unwrap()
             // Optionally redirect or show success
             router.push(`/chatroom/${chatroomId}`)
