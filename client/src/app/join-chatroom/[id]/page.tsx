@@ -17,7 +17,7 @@ import { useDispatch, useSelector } from "react-redux"
 import { checkJoinChatroom, joinChatroom } from "@/store/reducers/chatroomSlice"
 import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
-import { connectSocket } from "@/lib/socket/chatroom-socket"
+import { connectSocket, getSocket } from "@/lib/socket/chatroom-socket"
 
 interface ChatroomDetails {
     id: string
@@ -59,6 +59,48 @@ export default function JoinChatroomPage() {
             dispatch<any>(checkJoinChatroom({ roomId: chatroomId }))
         }
     }, [chatroomId, dispatch])
+
+    const [activeParticipants, setActiveParticipants] = useState<number>(members.length)
+
+    // Socket: Listen for participant updates
+    useEffect(() => {
+        let socket: any = null;
+        if (username) {
+            socket = connectSocket(username);
+            // Listen for join_success (initial join)
+            socket.on("join_success", (data: { participants: any[] }) => {
+                if (data && Array.isArray(data.participants)) {
+                    setActiveParticipants(data.participants.length)
+                }
+            });
+            // Listen for participants_list (full update)
+            socket.on("participants_list", (data: { participants: any[] }) => {
+                if (data && Array.isArray(data.participants)) {
+                    setActiveParticipants(data.participants.length)
+                }
+            });
+            // Listen for user_joined (increment)
+            socket.on("user_joined", (data: { participants: any[] }) => {
+                if (data && Array.isArray(data.participants)) {
+                    setActiveParticipants(data.participants.length)
+                }
+            });
+            // Listen for user_left (decrement)
+            socket.on("user_left", (data: { participants: any[] }) => {
+                if (data && Array.isArray(data.participants)) {
+                    setActiveParticipants(data.participants.length)
+                }
+            });
+        }
+        return () => {
+            if (socket) {
+                socket.off("join_success")
+                socket.off("participants_list")
+                socket.off("user_joined")
+                socket.off("user_left")
+            }
+        }
+    }, [username])
 
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -167,7 +209,7 @@ export default function JoinChatroomPage() {
                                                 <div className="flex flex-col gap-2 text-gray-300 text-sm">
                                                     <div className="flex items-center gap-2">
                                                         <Users className="w-4 h-4 text-orange-400" />
-                                                        <span>Participants: {members.length}</span>
+                                                        <span>Participants: {activeParticipants}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <Activity className="w-4 h-4 text-orange-400" />
@@ -190,6 +232,19 @@ export default function JoinChatroomPage() {
                                                         </>
                                                     )}
                                                 </div>
+                                            </div>
+                                            {/* Guidelines/Rules Section */}
+                                            <div className="mt-6 p-4 border border-orange-500/40 bg-orange-900/10 rounded-lg">
+                                                <h4 className="text-orange-400 font-semibold mb-2 flex items-center gap-2">
+                                                    <MessageCircle className="w-4 h-4" /> Guidelines & Rules
+                                                </h4>
+                                                <ul className="list-disc list-inside text-sm text-orange-200 space-y-1">
+                                                    <li>Be respectful and courteous to all members.</li>
+                                                    <li>No spamming, advertising, or self-promotion.</li>
+                                                    <li>Keep discussions relevant to the chatroom topic.</li>
+                                                    <li>Do not share personal or sensitive information.</li>
+                                                    <li>Follow all community and platform policies.</li>
+                                                </ul>
                                             </div>
                                         </>
                                     )}
