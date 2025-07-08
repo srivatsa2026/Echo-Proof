@@ -123,55 +123,18 @@ export default function LearnMorePage() {
 
     return (
         <div className="min-h-screen bg-[#0d0d0d] text-white">
-            {/* Navigation */}
-            <motion.nav
-                className="fixed top-0 w-full z-50 bg-[#0d0d0d]/90 backdrop-blur-md border-b border-[#ff6600]/20"
-                initial={{ y: -80 }}
-                animate={{ y: 0 }}
-                transition={{ duration: 0.5 }}
-            >
-                <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-                    <Link href="/" className="flex items-center space-x-2 group">
-                        <div className="w-7 h-7 bg-gradient-to-br from-[#ff6600] to-[#ff8533] rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
-                            <Sparkles className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="text-lg font-bold bg-gradient-to-r from-[#ff6600] to-[#ff8533] bg-clip-text text-transparent">
-                            EchoProof
-                        </span>
-                    </Link>
-
-                    <div className="hidden md:flex items-center space-x-6">
-                        <Link href="/" className="text-sm hover:text-[#ff6600] transition-colors">
-                            Home
-                        </Link>
-                        <Link href="/learn-more" className="text-sm text-[#ff6600]">
-                            Learn More
-                        </Link>
-                        <a
-                            href="https://github.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm hover:text-[#ff6600] transition-colors"
-                        >
-                            GitHub
-                        </a>
-                        <a
-                            href="https://twitter.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm hover:text-[#ff6600] transition-colors"
-                        >
-                            Twitter
-                        </a>
-                    </div>
-
-                    <motion.div {...scaleOnHover}>
-                        <Button className="bg-gradient-to-r from-[#ff6600] to-[#ff8533] hover:from-[#ff8533] hover:to-[#ff6600] text-white border-0 text-sm px-4 py-2">
-                            Launch App
-                        </Button>
-                    </motion.div>
-                </div>
-            </motion.nav>
+            {/* Back to Home Button - Top Left */}
+            <div className="absolute top-6 left-6 z-50">
+                <Link href="/">
+                    <Button
+                        variant="outline"
+                        className="border-[#ff6600]/50 text-[#ff6600] hover:bg-[#ff6600]/10 bg-transparent px-4 py-2 flex items-center gap-2 shadow-md"
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-1" />
+                        Back to Home
+                    </Button>
+                </Link>
+            </div>
 
             {/* Header Section */}
             <section className="pt-20 pb-12 px-4 bg-gradient-to-br from-[#ff6600]/5 via-transparent to-[#ff8533]/5">

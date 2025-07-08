@@ -78,37 +78,6 @@ export default function ChatroomsPage() {
           <h1 className="text-2xl font-bold mb-1">Chatrooms</h1>
           <p className="text-muted-foreground">Create and manage your chatrooms</p>
         </div>
-
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              New Chatroom
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create a New Chatroom</DialogTitle>
-              <DialogDescription>Give your chatroom a name to get started.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="chatroom-name">Chatroom Name</Label>
-                <Input
-                  id="chatroom-name"
-                  placeholder="e.g., Project Discussion"
-                  value={chatroomName}
-                  onChange={(e) => setChatroomName(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={createChatroom} disabled={isCreating || !chatroomName}>
-                {isCreating ? "Creating..." : "Create Chatroom"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">

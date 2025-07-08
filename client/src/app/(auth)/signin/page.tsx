@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { ArrowBigRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+
 export default function SignInPage() {
   const activeWalletAddress = useActiveWallet()
   const router = useRouter()
@@ -38,7 +39,7 @@ export default function SignInPage() {
               </p>
             </div>
             <div className="flex items-center space-x-4 mt-2">
-              <WalletButton />
+              <WalletButton path="dashboard" />
             </div>
             {
               activeWalletAddress && (

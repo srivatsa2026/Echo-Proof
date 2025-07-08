@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 40 },
@@ -48,6 +49,7 @@ export default function HomePage() {
   const [isScrolled, setIsScrolled] = useState(false)
   const { scrollYProgress } = useScroll()
   const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "50%"])
+  const router = useRouter()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -116,21 +118,21 @@ export default function HomePage() {
       name: "Sarah Chen",
       role: "Blockchain Developer",
       content: "EchoProof revolutionized how our DAO conducts meetings. Complete data ownership is game-changing.",
-      avatar: "/placeholder.svg?height=48&width=48",
+      avatar: "",
       rating: 5,
     },
     {
       name: "Marcus Rodriguez",
       role: "Crypto Startup Founder",
       content: "The AI summaries are incredibly accurate. We've saved hours and never miss important decisions.",
-      avatar: "/placeholder.svg?height=48&width=48",
+      avatar: "",
       rating: 5,
     },
     {
       name: "Elena Volkov",
       role: "DeFi Protocol Lead",
       content: "Finally, a communication platform that aligns with Web3 principles. No more centralized platforms.",
-      avatar: "/placeholder.svg?height=48&width=48",
+      avatar: "",
       rating: 5,
     },
   ]
@@ -177,8 +179,7 @@ export default function HomePage() {
 
       {/* Navigation */}
       <motion.nav
-        className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? "bg-[#0d0d0d]/90 backdrop-blur-md border-b border-[#ff6600]/20" : "bg-transparent"
-          }`}
+        className="fixed top-0 w-full z-50 bg-[#0d0d0d]/90 backdrop-blur-md border-b border-[#ff6600]/20"
         initial={{ y: -80 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5 }}
@@ -197,11 +198,11 @@ export default function HomePage() {
             <Link href="/" className="text-sm hover:text-[#ff6600] transition-colors">
               Home
             </Link>
-            <Link href="/learn-more" className="text-sm hover:text-[#ff6600] transition-colors">
+            <Link href="/learn-more" className="text-sm text-[#ff6600]">
               Learn More
             </Link>
             <a
-              href="https://github.com"
+              href="https://github.com/uttamseervi/Echo-Proof/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm hover:text-[#ff6600] transition-colors"
@@ -219,11 +220,11 @@ export default function HomePage() {
           </div>
 
           <motion.div {...scaleOnHover}>
-            <Link
-              href="/signin"
-              className="bg-gradient-to-r from-[#ff6600] to-[#ff8533] hover:from-[#ff8533] hover:to-[#ff6600] text-white border-0 text-sm px-4 py-2">
+            <Button className="bg-gradient-to-r from-[#ff6600] to-[#ff8533] hover:from-[#ff8533] hover:to-[#ff6600] text-white border-0 text-sm px-4 py-2"
+              onClick={() => router.push("/signin")}
+            >
               Launch App
-            </Link>
+            </Button>
           </motion.div>
         </div>
       </motion.nav>
@@ -253,6 +254,7 @@ export default function HomePage() {
               <motion.div {...scaleOnHover}>
                 <Button
                   size="lg"
+                  onClick={() => router.push("/signin")}
                   className="bg-gradient-to-r from-[#ff6600] to-[#ff8533] hover:from-[#ff8533] hover:to-[#ff6600] text-white border-0 px-6 py-3 text-base"
                 >
                   <Play className="w-4 h-4 mr-2" />

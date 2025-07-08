@@ -24,7 +24,14 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
     const userWalletAddress = useSelector((state: any) => state.user.smart_wallet_address);
 
     // Check if current path is public (doesn't require auth)
-    const isPublicPath = pathname === '/signin' || pathname === '/learn-more' || pathname === '/';
+    const isPublicPath =
+        pathname === '/signin' ||
+        pathname === '/learn-more' ||
+        pathname === '/' ||
+        pathname === '/join-chatroom' ||
+        /^\/join-chatroom(\/[^\/]+)?$/.test(pathname) ||
+        pathname === '/join-meeting' ||
+        /^\/join-meeting(\/[^\/]+)?$/.test(pathname);
 
     useEffect(() => {
         console.log('AuthGuard: Pathname changed to:', pathname);
@@ -45,15 +52,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
         }
 
         const checkAuth = () => {
-            const jwt = Cookies.get('jwt');
-            console.log('AuthGuard: Checking JWT:', !!jwt);
-
-            if (!jwt) {
-                console.log('No JWT found, redirecting to signin');
-                router.push('/signin');
-                return;
-            }
-
+            // JWT check removed; handled by middleware
             const wallet_address = activeWallet?.getAdminAccount?.()?.address;
             const smart_wallet_address = activeWallet?.getAccount()?.address;
 
@@ -101,7 +100,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-background">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-                <h2 className="text-lg font-medium">Connecting wallet...</h2>
+                <h2 className="text-lg font-medium">Checking wallet connectiono...</h2>
                 <p className="text-sm text-muted-foreground">Please wait while we establish your connection.</p>
             </div>
         );

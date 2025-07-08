@@ -245,11 +245,6 @@ export default function ChatroomPage() {
     }
   }, [username, socket, connectionStatus, chatroomId, isUsernameLoading]);
 
-  // useEffect(() => {
-  //   const userId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
-  //   setUserId(userId || "unknown-user")
-  // }, [username])
-
   // Initialize socket connection
   useEffect(() => {
     const SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050"
@@ -852,34 +847,6 @@ export default function ChatroomPage() {
     }, 1000)
   }
 
-  // const updateUsername = () => {
-  //   if (!tempUsername.trim()) return
-
-  //   const newUsername = tempUsername.trim()
-  //   setUsername(newUsername)
-  //   if (typeof window !== 'undefined') {
-  //     localStorage.setItem('chatUsername', newUsername)
-  //   }
-  //   dispatch<any>(updateUserProfile({ name: newUsername, email: undefined, toast }))
-  //   setShowUsernameDialog(false)
-
-  //   toast({
-  //     title: "Username Updated",
-  //     description: `Your username is now: ${newUsername}`,
-  //   })
-
-  //   // If connected, rejoin to update username
-  //   if (socket && connectionStatus === "connected") {
-  //     console.log("🔄 Updating username, rejoining room")
-  //     socket.emit("leave", { room: chatroomId })
-  //     setTimeout(() => {
-  //       socket.emit("join", {
-  //         room: chatroomId,
-  //         username: newUsername
-  //       })
-  //     }, 100)
-  //   }
-  // }
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -890,36 +857,6 @@ export default function ChatroomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  // const sendMessage = async () => {
-  //   if (!message.trim() || !socket || connectionStatus !== "connected") return
-
-  //   const newMessage: Message = {
-  //     id: `msg-${Date.now()}-local`,
-  //     sender: {
-  //       id: userId || "unknown-id",
-  //       name: username || "unknown",
-  //       smart_wallet_address: smart_wallet_address,
-  //       wallet_address: wallet_address
-  //     },
-  //     content: message,
-  //     timestamp: new Date(),
-  //     pending: true
-  //   }
-
-  //   // Add to local messages
-  //   setMessages(prev => [...prev, newMessage])
-
-  //   // Send to server
-  //   socket.emit("message", {
-  //     room: chatroomId,
-  //     userDbId: userId,
-  //     message: message,
-  //     username: username,
-  //     smart_wallet_address: smart_wallet_address
-  //   })
-
-  //   setMessage("")
-  // }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -929,10 +866,11 @@ export default function ChatroomPage() {
   }
 
   const copyRoomId = () => {
-    navigator.clipboard.writeText(chatroomId)
+    const joinUrl = `${window.location.origin}/join-chatroom/${chatroomId}`
+    navigator.clipboard.writeText(joinUrl)
     toast({
       title: "Copied",
-      description: "Chatroom ID copied to clipboard.",
+      description: "Join link copied to clipboard.",
     })
   }
 
@@ -1097,7 +1035,7 @@ export default function ChatroomPage() {
             <div>
               <h1 className="text-lg font-semibold">{chatroomTitle}</h1>
               <div className="flex items-center text-sm text-muted-foreground">
-                <span className="font-mono">{chatroomId}</span>
+                <span className="font-mono text-muted">copy room link</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={copyRoomId}>
                   <Copy className="h-3 w-3" />
                 </Button>

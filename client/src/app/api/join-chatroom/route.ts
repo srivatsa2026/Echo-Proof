@@ -123,12 +123,22 @@ export async function POST(req: NextRequest) {
         }
 
         // Add user as a member of the chatroom
-        await prisma.chatroomMember.create({
+        const newMember = await prisma.chatroomMember.create({
             data: {
                 chatroomId: roomId,
                 userId: userData.id,
                 role: "member",
                 isActive: true
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        profileImage: true,
+                        smartWalletAddress: true
+                    }
+                }
             }
         });
 
@@ -141,7 +151,8 @@ export async function POST(req: NextRequest) {
                     title: chatroom.title,
                     tokenGated: chatroom.tokenGated,
                     creator: chatroom.creator
-                }
+                },
+                member: newMember.user
             },
             { status: 200 }
         );
@@ -155,10 +166,9 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// GET route to check if user can join a chatroom (without actually joining)
+// GET route to check chatroom info (without user authentication)
 export async function GET(req: NextRequest) {
     try {
-        const jwt = cookies().get("jwt")?.value;
         const { searchParams } = new URL(req.url);
         const roomId = searchParams.get("roomId");
 
@@ -166,35 +176,6 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(
                 { message: "Invalid roomId or roomId is missing" },
                 { status: 400 }
-            );
-        }
-
-        if (!jwt) {
-            return NextResponse.json(
-                { message: "Unauthorized. Please sign in." },
-                { status: 401 }
-            );
-        }
-
-        const payload = await thirdwebAuth.verifyJWT({ jwt });
-
-        if (!payload.valid) {
-            return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
-        }
-
-        const walletAddress = payload.parsedJWT.sub;
-
-        // Find user
-        const userData = await prisma.user.findUnique({
-            where: {
-                smartWalletAddress: walletAddress
-            }
-        });
-
-        if (!userData) {
-            return NextResponse.json(
-                { message: "User not found." },
-                { status: 404 }
             );
         }
 
@@ -245,9 +226,6 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // Check if user is already a member
-        const isMember = chatroom.members.some((member: any) => member.userId === userData.id);
-
         return NextResponse.json(
             {
                 success: true,
@@ -261,10 +239,6 @@ export async function GET(req: NextRequest) {
                     creator: chatroom.creator,
                     memberCount: chatroom._count.members,
                     createdAt: chatroom.createdAt
-                },
-                userStatus: {
-                    isMember: isMember,
-                    canJoin: chatroom.isActive && !isMember
                 }
             },
             { status: 200 }

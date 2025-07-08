@@ -12,7 +12,8 @@ import {
 import { createWallet } from "thirdweb/wallets";
 import { sepolia } from "thirdweb/chains";
 import { useState } from "react";
-export default function ConnectionButton({ type = "signin" }) {
+
+export default function ConnectionButton({ path }: { path?: string }) {
     const wallets = [createWallet("io.metamask")];
     const router = useRouter();
 
@@ -33,15 +34,14 @@ export default function ConnectionButton({ type = "signin" }) {
                 },
                 doLogin: async (params) => {
                     await login(params);
-                    router.push("/dashboard");
+                    if (path) {
+                        router.push(`/${path}`);
+                    }
                 },
                 doLogout: async () => {
                     await logout();
                     // Clear specific items
                     localStorage.removeItem("userId");
-                    // localStorage.removeItem("userToken"); // if you have other items
-
-                    // OR clear everything (use with caution)
                     // localStorage.clear();
 
                     router.push("/signin");

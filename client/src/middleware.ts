@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_ROUTES = ['/signin', '/signup', '/learn-more', '/'];
+const PUBLIC_ROUTES = ['/signin', '/signup', '/learn-more', '/', '/join-chatroom', '/join-meeting'];
 const PRIVATE_PREFIXES = ['/dashboard', '/meeting', '/chatroom'];
 
 export function middleware(req: NextRequest) {
@@ -30,6 +30,6 @@ export function middleware(req: NextRequest) {
 }
 
 // Temporarily disabled to prevent conflicts with AuthGuard
-// export const config = {
-//     matcher: ['/dashboard/:path*', '/meeting/:path*', '/chatroom/:path*'],
-// };
+export const config = {
+    matcher: ['/dashboard/:path*', '/meeting/:path*', '/chatroom/:path*'],
+};

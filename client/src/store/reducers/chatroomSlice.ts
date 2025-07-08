@@ -87,6 +87,56 @@ export const fetchUserChatrooms = createAsyncThunk(
     }
 );
 
+// Async thunk for joining a chatroom
+export const joinChatroom = createAsyncThunk(
+    "chatroom/joinChatroom",
+    async (
+        { roomId, toast }: { roomId: string; toast?: any },
+        { rejectWithValue }
+    ) => {
+        try {
+            const response = await axios.post(
+                "/api/join-chatroom",
+                { roomId },
+                { withCredentials: true }
+            );
+            const data = response.data;
+            if (toast) {
+                toast({
+                    title: "Joined Chatroom",
+                    description: data.message || "Successfully joined the chatroom.",
+                });
+            }
+            return data;
+        } catch (error: any) {
+            if (toast) {
+                toast({
+                    title: "Error",
+                    description: error.response?.data?.message || "Failed to join chatroom.",
+                    variant: "destructive"
+                });
+            }
+            return rejectWithValue(error.response?.data || { message: "Unknown error" });
+        }
+    }
+);
+
+// Async thunk for checking if user can join a chatroom
+export const checkJoinChatroom = createAsyncThunk(
+    "chatroom/checkJoinChatroom",
+    async (
+        { roomId }: { roomId: string },
+        { rejectWithValue }
+    ) => {
+        try {
+            const response = await axios.get(`/api/join-chatroom?roomId=${roomId}`, { withCredentials: true });
+            return response.data;
+        } catch (error: any) {
+            return rejectWithValue(error.response?.data || { message: "Unknown error" });
+        }
+    }
+);
+
 const chatroomSlice = createSlice({
     name: "chatroom",
     initialState,
@@ -108,12 +158,10 @@ const chatroomSlice = createSlice({
                 state.tokenStandard = action.payload.chatroom.tokenStandard;
                 state.chatrooms.push(action.payload.chatroom);
             })
-
             .addCase(createChatroom.rejected, (state, action) => {
                 state.loading = false
                 state.error = (action.payload as any)?.message || "Failed to create chatroom"
             })
-
             .addCase(fetchUserChatrooms.pending, (state) => {
                 state.loading = true;
                 state.error = null;
@@ -125,6 +173,61 @@ const chatroomSlice = createSlice({
             .addCase(fetchUserChatrooms.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as any)?.message || "Failed to fetch chatrooms";
+            })
+            .addCase(joinChatroom.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(joinChatroom.fulfilled, (state, action) => {
+                state.loading = false;
+                state.error = null;
+                // Optionally update chatroom info if returned
+                if (action.payload && action.payload.chatroom) {
+                    state.id = action.payload.chatroom.id;
+                    state.title = action.payload.chatroom.title;
+                    state.creator = action.payload.chatroom.creator?.id || "unknown-id";
+                    state.tokenGated = action.payload.chatroom.tokenGated;
+                    // Only push if not already in chatrooms
+                    if (!state.chatrooms.some((c: any) => c.id === action.payload.chatroom.id)) {
+                        state.chatrooms.push(action.payload.chatroom);
+                    }
+                }
+                // Push the joined member to the members array if present
+                if (action.payload && action.payload.member) {
+                    // Avoid duplicates
+                    if (!state.members.some((m: any) => m.id === action.payload.member.id)) {
+                        state.members.push(action.payload.member);
+                    }
+                }
+            })
+            .addCase(joinChatroom.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as any)?.message || "Failed to join chatroom";
+            })
+            .addCase(checkJoinChatroom.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(checkJoinChatroom.fulfilled, (state, action) => {
+                state.loading = false;
+                state.error = null;
+                // Store chatroom info and user join status
+                if (action.payload && action.payload.chatroom) {
+                    state.id = action.payload.chatroom.id;
+                    state.title = action.payload.chatroom.title;
+                    state.active = action.payload.chatroom.isActive;
+                    state.tokenGated = action.payload.chatroom.tokenGated;
+                    state.tokenAddress = action.payload.chatroom.tokenAddress;
+                    state.tokenStandard = action.payload.chatroom.tokenStandard;
+                }
+                // Optionally store user join status
+                if (action.payload && action.payload.userStatus) {
+                    (state as any).userStatus = action.payload.userStatus;
+                }
+            })
+            .addCase(checkJoinChatroom.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as any)?.message || "Failed to check join status";
             });
     }
 })
