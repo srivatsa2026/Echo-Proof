@@ -166,10 +166,16 @@ io.on('connection', (socket) => {
     logger.info(`🔌 Client connected: ${userId}`);
     logger.info(`🔌 Total connected clients: ${io.engine.clientsCount}`);
 
+    // Get username from handshake auth, fallback to random if not provided
+    const handshakeUsername = socket.handshake.auth && socket.handshake.auth.username;
+    const username = handshakeUsername && typeof handshakeUsername === 'string' && handshakeUsername.trim() !== ''
+        ? handshakeUsername.trim()
+        : `User-${uuidv4().substring(0, 8)}`;
+
     // Generate a unique user ID and store user info
     users[userId] = {
         sid: userId,
-        name: `User-${uuidv4().substring(0, 8)}`,
+        name: username,
         rooms: [],
         status: 'online'
     };

@@ -78,7 +78,7 @@ export function CreateChatroomCard({ onCreated }: Props) {
             if (result?.chatroom?.id) {
                 setSessionId(result.chatroom.id)
                 onCreated?.(result.chatroom.id)
-                router.push(`/chatroom/${result.chatroom.id}`)
+                router.push(`/join-chatroom/${result.chatroom.id}`)
             }
 
             setTitle("")

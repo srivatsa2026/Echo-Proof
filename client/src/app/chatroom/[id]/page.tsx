@@ -27,16 +27,8 @@ import { useDispatch, useSelector } from "react-redux"
 import { updateUserProfile, getUserDetails } from "@/store/reducers/userSlice"
 // import { encryptMessage, decryptMessage } from "@/lib/lit-encryption"
 import { encryptMessage, decryptMessage, testEncryption } from "@/lib/simple-encryption"
-import dynamic from "next/dynamic"
+import { getSocket } from "@/lib/socket/chatroom-socket"
 
-// Dynamically import the encryption test component to avoid SSR issues
-// const EncryptionTest = dynamic(() => import("@/components/chatroom/EncryptionTest"), {
-//   ssr: false,
-//   loading: () => <div className="p-4 text-center">Loading encryption test...</div>
-// })
-
-
-// Define types for the app
 interface Participant {
   id: string;
   name: string;
@@ -106,14 +98,9 @@ export default function ChatroomPage() {
   // Use username directly from Redux state
   const username = usernameFromState && usernameFromState !== "Echo-Client" ? usernameFromState : "User"
   const [isLoading, setIsLoading] = useState(true)
-  const [isUsernameLoading, setIsUsernameLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
-  const [showUsernameDialog, setShowUsernameDialog] = useState(false)
-  const [tempUsername, setTempUsername] = useState("")
-  const [showError, setShowError] = useState(false)
   const token: any = Cookies.get("jwt")
-  console.log("the cookies is ", token)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [offset, setOffset] = useState(0);
@@ -206,12 +193,11 @@ export default function ChatroomPage() {
     setOffset(0);
     setHasMore(true);
     fetchMessages(0, false);
-    // Fetch user details
     dispatch<any>(getUserDetails());
 
     // Set a timeout to stop waiting for username after 3 seconds
     const usernameTimeout = setTimeout(() => {
-      setIsUsernameLoading(false);
+      setIsLoading(false);
     }, 3000);
 
     return () => clearTimeout(usernameTimeout);
@@ -227,13 +213,13 @@ export default function ChatroomPage() {
   useEffect(() => {
     if (usernameFromState && usernameFromState !== "Echo-Client") {
       console.log("🔄 Username loaded from Redux state:", usernameFromState);
-      setIsUsernameLoading(false);
+      // setIsUsernameLoading(false); // Removed
     }
   }, [usernameFromState]);
 
   // Rejoin room when username changes (if already connected)
   useEffect(() => {
-    if (socket && connectionStatus === "connected" && username && username !== "User" && !isUsernameLoading) {
+    if (socket && connectionStatus === "connected" && username && username !== "User") {
       console.log("🔄 Username changed, rejoining room as:", username);
       socket.emit("leave", { room: chatroomId });
       setTimeout(() => {
@@ -243,477 +229,431 @@ export default function ChatroomPage() {
         });
       }, 200);
     }
-  }, [username, socket, connectionStatus, chatroomId, isUsernameLoading]);
+  }, [username, socket, connectionStatus, chatroomId]);
 
-  // Initialize socket connection
-  useEffect(() => {
-    const SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050"
-    console.log("Attempting to connect to:", SERVER_URL)
-    setConnectionStatus("connecting")
+  // --- NEW SOCKET CONNECTION LOGIC ---
+  const chatSocket = getSocket();
+  if (!chatSocket) {
+    setError("No socket connection found. Please join the chatroom again.");
+    setIsLoading(false);
+    return;
+  }
+  setSocket(chatSocket);
+  setConnectionStatus(chatSocket.connected ? "connected" : "connecting");
 
-    // Connect to the Socket.IO server
-    const newSocket = io(SERVER_URL, {
-      transports: ["websocket", "polling"], // Allow both transports
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 3000,
-      timeout: 10000, // Add timeout
-      forceNew: true, // Force new connection
-      // Remove auth for now - server doesn't handle it
-      // auth: token || "token"
+  const handleConnect = () => {
+    setConnectionStatus("connected");
+    setIsLoading(false);
+    // Join the room
+    chatSocket.emit("join", {
+      room: chatroomId,
+      username: username
+    });
+    // Request message history
+    chatSocket.emit("get_history", {
+      room: chatroomId
+    });
+    toast({
+      title: "Connected",
+      description: "You are now connected to the chat server.",
+    });
+  };
+  const handleConnectError = (err: unknown) => {
+    setConnectionStatus("disconnected");
+    setIsLoading(false);
+    setError("Failed to connect to the chat server. Please try again later.");
+    toast({
+      title: "Connection Error",
+      description: `Failed to connect: ${err && typeof err === 'object' && 'message' in err ? (err as any).message : 'Unknown error'}`,
+      variant: "destructive",
+    });
+  };
+  const handleDisconnect = (reason: unknown) => {
+    setConnectionStatus("disconnected");
+    toast({
+      title: "Disconnected",
+      description: reason === "io server disconnect"
+        ? "You have been disconnected from the server."
+        : "Connection lost. Attempting to reconnect...",
+      variant: "destructive",
+    });
+  };
+  chatSocket.on("connect", handleConnect);
+  chatSocket.on("connect_error", handleConnectError);
+  chatSocket.on("disconnect", handleDisconnect);
+
+  chatSocket.on("reconnect", (attemptNumber: number) => {
+    console.log("🔄 Reconnected after", attemptNumber, "attempts")
+    setConnectionStatus("connected")
+
+    toast({
+      title: "Reconnected",
+      description: "You have been reconnected to the chat server.",
     })
 
-    // Set up event listeners
-    newSocket.on("connect", () => {
-      console.log("✅ Connected to server with ID:", newSocket.id)
+    // Rejoin the room
+    chatSocket.emit("join", {
+      room: chatroomId,
+      username: username
+    })
+  })
+
+  chatSocket.on("reconnect_failed", () => {
+    console.error("❌ Failed to reconnect")
+    setError("Failed to reconnect to the server. Please refresh the page.")
+    toast({
+      title: "Reconnection Failed",
+      description: "Unable to reconnect to the server. Please refresh the page.",
+      variant: "destructive",
+    })
+  })
+
+  // Socket event handlers
+  chatSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
+    console.log("📡 Connection status:", data)
+
+    // Additional confirmation that we're connected
+    if (data.status === 'connected') {
       setConnectionStatus("connected")
-      setIsLoading(false)
+    }
+  })
 
-      // Wait for username to be loaded before joining
-      const joinRoom = () => {
-        console.log("🚪 Joining room:", chatroomId, "as", username)
-        newSocket.emit("join", {
-          room: chatroomId,
-          username: username
-        })
+  chatSocket.on("error", (data: { message: string }) => {
+    console.error("⚠️ Server error:", data.message)
+    toast({
+      title: "Error",
+      description: data.message,
+      variant: "destructive",
+    })
+  })
 
-        // Request message history
-        newSocket.emit("get_history", {
-          room: chatroomId
-        })
-      }
+  chatSocket.on("join_success", async (data: { participants: Participant[], history?: any[], roomId: string }) => {
+    console.log("✅ Join success:", data)
 
-      // If username is already loaded, join immediately
-      if (!isUsernameLoading && username && username !== "User") {
-        joinRoom();
-      } else {
-        // Wait for username to be loaded
-        const checkUsername = setInterval(() => {
-          if (!isUsernameLoading && username && username !== "User") {
-            clearInterval(checkUsername);
-            joinRoom();
+    // Set participants list (mark current user)
+    const updatedParticipants = data.participants.map((participant: Participant) => ({
+      ...participant,
+      isCurrentUser: participant.id === chatSocket.id
+    }))
+
+    // Add current user if not in the list
+    const currentUserExists = updatedParticipants.some(p => p.id === chatSocket.id)
+    if (!currentUserExists) {
+      updatedParticipants.push({
+        id: chatSocket.id || "unknown-id",
+        name: username || "unknown",
+        status: "online",
+        isCurrentUser: true
+      })
+    }
+
+    setParticipants(updatedParticipants)
+
+    // Load message history if available
+    if (data.history && Array.isArray(data.history)) {
+      const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
+        let decryptedContent = msg.content || msg.message;
+
+        // Check if message is encrypted
+        if (msg.encryptedSymmetricKey) {
+          try {
+            const walletAddress = smart_wallet_address || wallet_address || "unknown";
+            decryptedContent = await decryptMessage(
+              msg.content || msg.message,
+              msg.encryptedSymmetricKey,
+              chatroomId,
+              wallet,
+              walletAddress
+            );
+          } catch (error) {
+            console.error('Error decrypting history message:', error);
+            decryptedContent = "[Encrypted message - unable to decrypt]";
           }
-        }, 100);
-
-        // Clear interval after 5 seconds to prevent infinite waiting
-        setTimeout(() => {
-          clearInterval(checkUsername);
-          if (username && username !== "User") {
-            joinRoom();
-          }
-        }, 5000);
-      }
-
-      toast({
-        title: "Connected",
-        description: "You are now connected to the chat server.",
-      })
-    })
-
-    newSocket.on("connect_error", (err: any) => {
-      console.error("❌ Connection error:", err)
-      console.error("Error type:", err.type)
-      console.error("Error description:", err.description)
-      setConnectionStatus("disconnected")
-      setIsLoading(false)
-      setError("Failed to connect to the chat server. Please try again later.")
-      setShowError(true)
-
-      toast({
-        title: "Connection Error",
-        description: `Failed to connect: ${err.message || err.description || 'Unknown error'}`,
-        variant: "destructive",
-      })
-    })
-
-    newSocket.on("disconnect", (reason) => {
-      console.log("❌ Disconnected from server, reason:", reason)
-      setConnectionStatus("disconnected")
-
-      toast({
-        title: "Disconnected",
-        description: reason === "io server disconnect"
-          ? "You have been disconnected from the server."
-          : "Connection lost. Attempting to reconnect...",
-        variant: "destructive",
-      })
-    })
-
-    newSocket.on("reconnect", (attemptNumber: number) => {
-      console.log("🔄 Reconnected after", attemptNumber, "attempts")
-      setConnectionStatus("connected")
-
-      toast({
-        title: "Reconnected",
-        description: "You have been reconnected to the chat server.",
-      })
-
-      // Rejoin the room
-      newSocket.emit("join", {
-        room: chatroomId,
-        username: username
-      })
-    })
-
-    newSocket.on("reconnect_failed", () => {
-      console.error("❌ Failed to reconnect")
-      setError("Failed to reconnect to the server. Please refresh the page.")
-      setShowError(true)
-
-      toast({
-        title: "Reconnection Failed",
-        description: "Unable to reconnect to the server. Please refresh the page.",
-        variant: "destructive",
-      })
-    })
-
-    // Socket event handlers
-    newSocket.on("connection_status", (data: { userId: string; status: string; message: string }) => {
-      console.log("📡 Connection status:", data)
-
-      // Additional confirmation that we're connected
-      if (data.status === 'connected') {
-        setConnectionStatus("connected")
-      }
-    })
-
-    newSocket.on("error", (data: { message: string }) => {
-      console.error("⚠️ Server error:", data.message)
-      toast({
-        title: "Error",
-        description: data.message,
-        variant: "destructive",
-      })
-    })
-
-    newSocket.on("join_success", async (data: { participants: Participant[], history?: any[], roomId: string }) => {
-      console.log("✅ Join success:", data)
-
-      // Set participants list (mark current user)
-      const updatedParticipants = data.participants.map((participant: Participant) => ({
-        ...participant,
-        isCurrentUser: participant.id === newSocket.id
-      }))
-
-      // Add current user if not in the list
-      const currentUserExists = updatedParticipants.some(p => p.id === newSocket.id)
-      if (!currentUserExists) {
-        updatedParticipants.push({
-          id: newSocket.id || "unknown-id",
-          name: username || "unknown",
-          status: "online",
-          isCurrentUser: true
-        })
-      }
-
-      setParticipants(updatedParticipants)
-
-      // Load message history if available
-      if (data.history && Array.isArray(data.history)) {
-        const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
-          let decryptedContent = msg.content || msg.message;
-
-          // Check if message is encrypted
-          if (msg.encryptedSymmetricKey) {
-            try {
-              const walletAddress = smart_wallet_address || wallet_address || "unknown";
-              decryptedContent = await decryptMessage(
-                msg.content || msg.message,
-                msg.encryptedSymmetricKey,
-                chatroomId,
-                wallet,
-                walletAddress
-              );
-            } catch (error) {
-              console.error('Error decrypting history message:', error);
-              decryptedContent = "[Encrypted message - unable to decrypt]";
-            }
-          }
-
-          // Handle both old and new sender formats
-          let sender = msg.sender;
-          if (!sender && msg.sender_id) {
-            // Old format: convert sender_id to sender object
-            sender = {
-              id: msg.sender_id,
-              name: "Unknown User",
-              smart_wallet_address: undefined,
-              wallet_address: undefined
-            };
-          }
-
-          // Ensure sender object has all required fields
-          if (sender) {
-            sender = {
-              id: sender.id,
-              name: sender.name || "Unknown User",
-              smart_wallet_address: sender.smart_wallet_address,
-              wallet_address: sender.wallet_address
-            };
-          }
-
-          return {
-            id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-            sender: sender,
-            content: decryptedContent,
-            timestamp: new Date(msg.timestamp)
-          };
-        }));
-        console.log("📚 Loading", historyMessages.length, "messages from history")
-        setMessages(historyMessages)
-      }
-
-      toast({
-        title: "Joined Room",
-        description: `You have joined the chatroom: ${chatroomId}`,
-      })
-    })
-
-    newSocket.on("user_joined", (data: { username: string, participants: Participant[] }) => {
-      console.log("👤 User joined:", data)
-
-      // Update participants list
-      if (data.participants) {
-        const updatedParticipants = data.participants.map(participant => ({
-          ...participant,
-          isCurrentUser: participant.id === newSocket.id
-        }))
-
-        setParticipants(updatedParticipants)
-      }
-
-      toast({
-        title: "User Joined",
-        description: `${data.username} has joined the room.`,
-      })
-    })
-
-    newSocket.on("user_left", (data: { username: string, participants: Participant[] }) => {
-      console.log("👤 User left:", data)
-
-      // Update participants list
-      if (data.participants) {
-        const updatedParticipants = data.participants.map(participant => ({
-          ...participant,
-          isCurrentUser: participant.id === newSocket.id
-        }))
-
-        setParticipants(updatedParticipants)
-      }
-
-      toast({
-        title: "User Left",
-        description: `${data.username} has left the room.`,
-      })
-    })
-
-    newSocket.on("leave_success", (data: any) => {
-      console.log("🚪 Leave success:", data)
-      toast({
-        title: "Left Room",
-        description: `You have left the chatroom.`,
-      })
-    })
-
-    newSocket.on("message_received", async (message: any) => {
-      console.log("📨 Message received:", message)
-
-      try {
-        // Decrypt the message if it's encrypted
-        let decryptedContent = message.content
-        if (message.encryptedSymmetricKey) {
-          const walletAddress = smart_wallet_address || wallet_address || "unknown"
-
-          decryptedContent = await decryptMessage(
-            message.content,
-            message.encryptedSymmetricKey,
-            chatroomId,
-            wallet,
-            walletAddress
-          )
         }
 
-        // Check if this is our own message to prevent duplicates
+        // Handle both old and new sender formats
+        let sender = msg.sender;
+        if (!sender && msg.sender_id) {
+          // Old format: convert sender_id to sender object
+          sender = {
+            id: msg.sender_id,
+            name: "Unknown User",
+            smart_wallet_address: undefined,
+            wallet_address: undefined
+          };
+        }
+
+        // Ensure sender object has all required fields
+        if (sender) {
+          sender = {
+            id: sender.id,
+            name: sender.name || "Unknown User",
+            smart_wallet_address: sender.smart_wallet_address,
+            wallet_address: sender.wallet_address
+          };
+        }
+
+        return {
+          id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
+          sender: sender,
+          content: decryptedContent,
+          timestamp: new Date(msg.timestamp)
+        };
+      }));
+      console.log("📚 Loading", historyMessages.length, "messages from history")
+      setMessages(historyMessages)
+    }
+
+    toast({
+      title: "Joined Room",
+      description: `You have joined the chatroom: ${chatroomId}`,
+    })
+  })
+
+  chatSocket.on("user_joined", (data: { username: string, participants: Participant[] }) => {
+    console.log("👤 User joined:", data)
+
+    // Update participants list
+    if (data.participants) {
+      const updatedParticipants = data.participants.map(participant => ({
+        ...participant,
+        isCurrentUser: participant.id === chatSocket.id
+      }))
+
+      setParticipants(updatedParticipants)
+    }
+
+    toast({
+      title: "User Joined",
+      description: `${data.username} has joined the room.`,
+    })
+  })
+
+  chatSocket.on("user_left", (data: { username: string, participants: Participant[] }) => {
+    console.log("👤 User left:", data)
+
+    // Update participants list
+    if (data.participants) {
+      const updatedParticipants = data.participants.map(participant => ({
+        ...participant,
+        isCurrentUser: participant.id === chatSocket.id
+      }))
+
+      setParticipants(updatedParticipants)
+    }
+
+    toast({
+      title: "User Left",
+      description: `${data.username} has left the room.`,
+    })
+  })
+
+  chatSocket.on("leave_success", (data: any) => {
+    console.log("🚪 Leave success:", data)
+    toast({
+      title: "Left Room",
+      description: `You have left the chatroom.`,
+    })
+  })
+
+  chatSocket.on("message_received", async (message: any) => {
+    console.log("📨 Message received:", message)
+
+    try {
+      // Decrypt the message if it's encrypted
+      let decryptedContent = message.content
+      if (message.encryptedSymmetricKey) {
+        const walletAddress = smart_wallet_address || wallet_address || "unknown"
+
+        decryptedContent = await decryptMessage(
+          message.content,
+          message.encryptedSymmetricKey,
+          chatroomId,
+          wallet,
+          walletAddress
+        )
+      }
+
+      // Check if this is our own message to prevent duplicates
+      const isOwnMessage = message.sender?.id === userId ||
+        (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
+        (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+
+      console.log("📨 Message ownership check:", {
+        messageId: message.id,
+        senderId: message.sender?.id,
+        userId: userId,
+        isOwnMessage: isOwnMessage
+      });
+
+      // Add received message to messages with decrypted content
+      setMessages(prev => {
+        // Check if this is our own message and we have a pending local message
         const isOwnMessage = message.sender?.id === userId ||
           (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
           (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
 
-        console.log("📨 Message ownership check:", {
-          messageId: message.id,
-          senderId: message.sender?.id,
-          userId: userId,
-          isOwnMessage: isOwnMessage
-        });
-
-        // Add received message to messages with decrypted content
-        setMessages(prev => {
-          // Check if this is our own message and we have a pending local message
-          const isOwnMessage = message.sender?.id === userId ||
-            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
-            (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
-
-          if (isOwnMessage) {
-            // Replace pending local message with server-confirmed message
-            const hasPendingMessage = prev.some(msg => msg.pending && msg.content === decryptedContent);
-            if (hasPendingMessage) {
-              console.log("📨 Replacing pending message with server confirmation:", message.id);
-              return prev.map(msg =>
-                msg.pending && msg.content === decryptedContent
-                  ? {
-                    id: message.id,
-                    sender: message.sender,
-                    content: decryptedContent,
-                    timestamp: new Date(message.timestamp),
-                    pending: false
-                  }
-                  : msg
-              );
-            }
+        if (isOwnMessage) {
+          // Replace pending local message with server-confirmed message
+          const hasPendingMessage = prev.some(msg => msg.pending && msg.content === decryptedContent);
+          if (hasPendingMessage) {
+            console.log("📨 Replacing pending message with server confirmation:", message.id);
+            return prev.map(msg =>
+              msg.pending && msg.content === decryptedContent
+                ? {
+                  id: message.id,
+                  sender: message.sender,
+                  content: decryptedContent,
+                  timestamp: new Date(message.timestamp),
+                  pending: false
+                }
+                : msg
+            );
           }
+        }
 
-          // Check if message already exists (to prevent duplicates)
-          const messageExists = prev.some(existingMsg =>
-            existingMsg.id === message.id ||
-            (existingMsg.sender?.id === message.sender?.id &&
-              existingMsg.content === decryptedContent &&
-              Math.abs(existingMsg.timestamp.getTime() - new Date(message.timestamp).getTime()) < 1000) // Within 1 second
-          );
+        // Check if message already exists (to prevent duplicates)
+        const messageExists = prev.some(existingMsg =>
+          existingMsg.id === message.id ||
+          (existingMsg.sender?.id === message.sender?.id &&
+            existingMsg.content === decryptedContent &&
+            Math.abs(existingMsg.timestamp.getTime() - new Date(message.timestamp).getTime()) < 1000) // Within 1 second
+        );
 
-          if (messageExists) {
-            console.log("📨 Skipping duplicate message:", message.id);
-            return prev;
-          }
+        if (messageExists) {
+          console.log("📨 Skipping duplicate message:", message.id);
+          return prev;
+        }
 
-          return [
-            ...prev,
-            {
-              id: message.id,
-              sender: message.sender,
-              content: decryptedContent,
-              timestamp: new Date(message.timestamp)
-            }
-          ];
-        });
-      } catch (error) {
-        console.error("❌ Error decrypting message:", error)
-        // Add message with encrypted content if decryption fails
-        setMessages(prev => [
+        return [
           ...prev,
           {
             id: message.id,
             sender: message.sender,
-            content: "[Encrypted message - unable to decrypt]",
+            content: decryptedContent,
             timestamp: new Date(message.timestamp)
           }
-        ])
-      }
-    })
-
-    newSocket.on("history", async (data: { room: string, messages: any[] }) => {
-      console.log("📚 History received:", data)
-
-      if (data.messages && Array.isArray(data.messages)) {
-        const historyMessages = await Promise.all(data.messages.map(async (msg: any) => {
-          let decryptedContent = msg.content || msg.message;
-
-          // Check if message is encrypted
-          if (msg.encryptedSymmetricKey) {
-            try {
-              const walletAddress = smart_wallet_address || wallet_address || "unknown";
-              decryptedContent = await decryptMessage(
-                msg.content || msg.message,
-                msg.encryptedSymmetricKey,
-                chatroomId,
-                wallet,
-                walletAddress
-              );
-            } catch (error) {
-              console.error('Error decrypting history message:', error);
-              decryptedContent = "[Encrypted message - unable to decrypt]";
-            }
-          }
-
-          // Handle both old and new sender formats
-          let sender = msg.sender;
-          if (!sender && msg.sender_id) {
-            // Old format: convert sender_id to sender object
-            sender = {
-              id: msg.sender_id,
-              name: "Unknown User",
-              smart_wallet_address: undefined,
-              wallet_address: undefined
-            };
-          }
-
-          // Ensure sender object has all required fields
-          if (sender) {
-            sender = {
-              id: sender.id,
-              name: sender.name || "Unknown User",
-              smart_wallet_address: sender.smart_wallet_address,
-              wallet_address: sender.wallet_address
-            };
-          }
-
-          return {
-            id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-            sender: sender,
-            content: decryptedContent,
-            timestamp: new Date(msg.timestamp)
-          };
-        }));
-
-        console.log("📚 Loaded", historyMessages.length, "messages from history")
-        setMessages(historyMessages)
-      }
-    })
-
-    newSocket.on("participants_list", (data: { participants: Participant[] }) => {
-      console.log("👥 Participants list:", data)
-
-      // Update participants
-      if (data.participants) {
-        const updatedParticipants = data.participants.map(participant => ({
-          ...participant,
-          isCurrentUser: participant.id === newSocket.id
-        }))
-
-        setParticipants(updatedParticipants)
-      }
-    })
-
-    newSocket.on("status_updated", (data: { participants: Participant[] }) => {
-      console.log("🔄 Status updated:", data)
-
-      // Update participants list with new status
-      if (data.participants) {
-        const updatedParticipants = data.participants.map(participant => ({
-          ...participant,
-          isCurrentUser: participant.id === newSocket.id
-        }))
-
-        setParticipants(updatedParticipants)
-      }
-    })
-
-    // Debug: Log all events
-    newSocket.onAny((event, ...args) => {
-      console.log(`🔍 Event '${event}' received:`, args)
-    })
-
-    // Save socket instance and clean up on unmount
-    setSocket(newSocket)
-
-    return () => {
-      if (newSocket) {
-        console.log("🧹 Cleaning up socket connection")
-        // Leave room before disconnecting
-        newSocket.emit("leave", { room: chatroomId })
-        newSocket.disconnect()
-      }
+        ];
+      });
+    } catch (error) {
+      console.error("❌ Error decrypting message:", error)
+      // Add message with encrypted content if decryption fails
+      setMessages(prev => [
+        ...prev,
+        {
+          id: message.id,
+          sender: message.sender,
+          content: "[Encrypted message - unable to decrypt]",
+          timestamp: new Date(message.timestamp)
+        }
+      ])
     }
-  }, [chatroomId, toast, username, token])
+  })
+
+  chatSocket.on("history", async (data: { room: string, messages: any[] }) => {
+    console.log("📚 History received:", data)
+
+    if (data.messages && Array.isArray(data.messages)) {
+      const historyMessages = await Promise.all(data.messages.map(async (msg: any) => {
+        let decryptedContent = msg.content || msg.message;
+
+        // Check if message is encrypted
+        if (msg.encryptedSymmetricKey) {
+          try {
+            const walletAddress = smart_wallet_address || wallet_address || "unknown";
+            decryptedContent = await decryptMessage(
+              msg.content || msg.message,
+              msg.encryptedSymmetricKey,
+              chatroomId,
+              wallet,
+              walletAddress
+            );
+          } catch (error) {
+            console.error('Error decrypting history message:', error);
+            decryptedContent = "[Encrypted message - unable to decrypt]";
+          }
+        }
+
+        // Handle both old and new sender formats
+        let sender = msg.sender;
+        if (!sender && msg.sender_id) {
+          // Old format: convert sender_id to sender object
+          sender = {
+            id: msg.sender_id,
+            name: "Unknown User",
+            smart_wallet_address: undefined,
+            wallet_address: undefined
+          };
+        }
+
+        // Ensure sender object has all required fields
+        if (sender) {
+          sender = {
+            id: sender.id,
+            name: sender.name || "Unknown User",
+            smart_wallet_address: sender.smart_wallet_address,
+            wallet_address: sender.wallet_address
+          };
+        }
+
+        return {
+          id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
+          sender: sender,
+          content: decryptedContent,
+          timestamp: new Date(msg.timestamp)
+        };
+      }));
+
+      console.log("📚 Loaded", historyMessages.length, "messages from history")
+      setMessages(historyMessages)
+    }
+  })
+
+  chatSocket.on("participants_list", (data: { participants: Participant[] }) => {
+    console.log("👥 Participants list:", data)
+
+    // Update participants
+    if (data.participants) {
+      const updatedParticipants = data.participants.map(participant => ({
+        ...participant,
+        isCurrentUser: participant.id === chatSocket.id
+      }))
+
+      setParticipants(updatedParticipants)
+    }
+  })
+
+  chatSocket.on("status_updated", (data: { participants: Participant[] }) => {
+    console.log("🔄 Status updated:", data)
+
+    // Update participants list with new status
+    if (data.participants) {
+      const updatedParticipants = data.participants.map(participant => ({
+        ...participant,
+        isCurrentUser: participant.id === chatSocket.id
+      }))
+
+      setParticipants(updatedParticipants)
+    }
+  })
+
+  // Debug: Log all events
+  chatSocket.onAny((event, ...args) => {
+    console.log(`🔍 Event '${event}' received:`, args)
+  })
+
+  // On mount, if already connected, join the room
+  if (chatSocket.connected) {
+    handleConnect();
+  }
+
+  return () => {
+    chatSocket.off("connect", handleConnect);
+    chatSocket.off("connect_error", handleConnectError);
+    chatSocket.off("disconnect", handleDisconnect);
+    // ... (remove other event listeners as needed)
+  }
+  // --- END NEW SOCKET CONNECTION LOGIC ---
 
   const sendMessage = async () => {
     if (!message.trim() || !socket || connectionStatus !== "connected") {
@@ -874,51 +814,6 @@ export default function ChatroomPage() {
     })
   }
 
-  // const leaveRoom = () => {
-  //   setIsLeavingRoom(true)
-
-  //   if (socket && connectionStatus === "connected") {
-  //     socket.emit("leave", { room: chatroomId })
-  //   }
-
-  //   toast({
-  //     title: "Leaving Room",
-  //     description: "You are leaving the chatroom...",
-  //   })
-
-  //   // Redirect after a short delay
-  //   setTimeout(() => {
-  //     setLeaveDialogOpen(false)
-  //     router.push("/dashboard")
-  //   }, 1000)
-  // }
-
-  const updateUsername = () => {
-    if (!tempUsername.trim()) return
-
-    const newUsername = tempUsername.trim()
-
-    // Update Redux state - username will automatically update from state
-    dispatch<any>(updateUserProfile({ name: newUsername, email: undefined, toast }))
-    setShowUsernameDialog(false)
-
-    toast({
-      title: "Username Updated",
-      description: `Your username is now: ${newUsername}`,
-    })
-
-    // If connected, rejoin to update username
-    if (socket && connectionStatus === "connected") {
-      socket.emit("leave", { room: chatroomId })
-      setTimeout(() => {
-        socket.emit("join", {
-          room: chatroomId,
-          username: newUsername
-        })
-      }, 200)
-    }
-  }
-
   const generateSummary = () => {
     if (messages.length === 0) {
       toast({
@@ -956,7 +851,7 @@ export default function ChatroomPage() {
   }
 
   // Error state
-  if (showError) {
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <AlertTriangle className="h-8 w-8 text-destructive mb-4" />
@@ -976,32 +871,6 @@ export default function ChatroomPage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Encryption Test - Remove this in production */}
 
-
-      {/* Username Dialog */}
-      <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Username</DialogTitle>
-            <DialogDescription>
-              Enter a new username that will be visible to others in the chatroom.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={tempUsername}
-            onChange={(e) => setTempUsername(e.target.value)}
-            placeholder="Enter new username"
-            className="mt-4"
-          />
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowUsernameDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={updateUsername} disabled={!tempUsername.trim()}>
-              Update Username
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Leave Confirmation Dialog */}
       <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
@@ -1061,23 +930,6 @@ export default function ChatroomPage() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Participants</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowUsernameDialog(true)}
-                  >
-                    <User className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Change Username</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

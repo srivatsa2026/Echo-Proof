@@ -17,6 +17,7 @@ import { useDispatch, useSelector } from "react-redux"
 import { checkJoinChatroom, joinChatroom } from "@/store/reducers/chatroomSlice"
 import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
+import { connectSocket } from "@/lib/socket/chatroom-socket"
 
 interface ChatroomDetails {
     id: string
@@ -64,6 +65,8 @@ export default function JoinChatroomPage() {
         if (!username.trim()) return
         setIsJoining(true)
         try {
+            // Initiate socket connection with username
+            connectSocket(username)
             await dispatch<any>(joinChatroom({ roomId: chatroomId })).unwrap()
             // Optionally redirect or show success
             router.push(`/chatroom/${chatroomId}`)
