@@ -75,6 +75,24 @@ export default function JoinChatroomPage() {
         let socket: any = null;
         if (username) {
             socket = getSocket(username);
+            const handleConnect = () => {
+                // Emit join event after connection
+                socket.emit("join", {
+                    room: chatroomId,
+                    username: username
+                });
+            };
+            const handleConnectError = (err: any) => {
+                // Optionally handle connection error (e.g., show toast or set error state)
+                console.error("Socket connection error:", err);
+            };
+            const handleDisconnect = (reason: any) => {
+                // Optionally handle disconnect (e.g., show toast or set error state)
+                console.warn("Socket disconnected:", reason);
+            };
+            socket.on("connect", handleConnect);
+            socket.on("connect_error", handleConnectError);
+            socket.on("disconnect", handleDisconnect);
             // Listen for join_success (initial join)
             socket.on("join_success", (data: { participants: any[] }) => {
                 if (data && Array.isArray(data.participants)) {
@@ -102,13 +120,16 @@ export default function JoinChatroomPage() {
         }
         return () => {
             if (socket) {
+                socket.off("connect")
+                socket.off("connect_error")
+                socket.off("disconnect")
                 socket.off("join_success")
                 socket.off("participants_list")
                 socket.off("user_joined")
                 socket.off("user_left")
             }
         }
-    }, [username])
+    }, [username, chatroomId])
 
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault()
