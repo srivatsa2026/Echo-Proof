@@ -25,13 +25,15 @@ console.log("NODE_ENV:", process.env.NODE_ENV, "environment:", environment);
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: isProd ? prodDomain : devDomain,
+	// domain: isProd ? prodDomain : devDomain,
+	domain: "https://echo-proof.vercel.app",
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
 		statement: "Click Sign only means you have proved this wallet is owned by you. We will use the public wallet address to fetch your NFTs. This request will not trigger any blockchain transaction or cost any gas fees.",
 		version: "1",
-		uri: isProd ? prodDomain : devDomain,
+		// uri: isProd ? prodDomain : devDomain,
+		uri: "https://echo-proof.vercel.app"
 	},
 });
 
