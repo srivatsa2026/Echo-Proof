@@ -23,10 +23,18 @@ export default function ConnectionButton({ path }: { path?: string }) {
     return (
         <ConnectButton
             client={client}
-            accountAbstraction={{
-                chain: sepolia,
-                sponsorGas: true,
+            // accountAbstraction={{
+            //     chain: sepolia,
+            //     sponsorGas: true,
+            // }}
+
+            appMetadata={{
+                name: "EchoProof",
+                url: "https://echoproof.xyz",
+                description: "A decentralized, secure platform for AI-powered meetings and chatrooms.",
+                logoUrl: "https://echoproof.xyz/logo.svg",
             }}
+
             wallets={wallets}
             auth={{
                 isLoggedIn: async () => {
@@ -36,7 +44,9 @@ export default function ConnectionButton({ path }: { path?: string }) {
                     return generatePayload({ address, chainId: 11155111 });
                 },
                 doLogin: async (params) => {
+                    console.log("the login params in the connection button is ", params)
                     await login(params);
+
                     await dispatch<any>(getUserDetails());
                     if (path) {
                         router.push(`/${path}`);

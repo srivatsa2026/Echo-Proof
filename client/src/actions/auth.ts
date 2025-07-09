@@ -18,7 +18,7 @@ const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: "localhost:3000",
+	domain: "localhost",
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
