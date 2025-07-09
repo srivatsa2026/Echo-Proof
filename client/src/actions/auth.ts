@@ -11,41 +11,30 @@ import { createThirdwebClient } from "thirdweb";
 
 import { prisma } from "@/lib/db";
 
-// 1. Setup thirdweb client and auth
 const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
-const environment = process.env.NODE_ENV;
-const isProd = environment === "production";
-
-// Fix: Use proper protocol for dev domain
-const prodDomain = "https://echo-proof.vercel.app";
-const devDomain = "http://localhost:3000"; // Added http:// protocol
-
-console.log("NODE_ENV:", process.env.NODE_ENV, "environment:", environment);
+const domain: string = process.env.NEXT_PUBLIC_THIRDWEB_AUTH_DOMAIN || "";
+const isProd = process.env.NODE_ENV === "production";
 
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: isProd ? prodDomain : devDomain,
+	domain: domain,
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
 		statement: "Click Sign only means you have proved this wallet is owned by you. We will use the public wallet address to fetch your NFTs. This request will not trigger any blockchain transaction or cost any gas fees.",
 		version: "1",
-		uri: isProd ? prodDomain : devDomain,
+		uri: domain,
 	},
 });
 
-// 2. Generate Login Payload
 export async function generatePayload(payload: GenerateLoginPayloadParams) {
-	console.log("Generating payload:", payload);
 	return thirdwebAuth.generatePayload(payload);
 }
 
-// 3. Login - Check if user exists, if not create one
 export async function login(payload: VerifyLoginPayloadParams) {
 	const verifiedPayload = await thirdwebAuth.verifyPayload(payload);
-	console.log("the verified pay load is from the auth.ts ", verifiedPayload)
 
 	if (!verifiedPayload.valid) {
 		throw new Error("Invalid wallet signature. Authentication failed.");
@@ -54,14 +43,12 @@ export async function login(payload: VerifyLoginPayloadParams) {
 	const walletAddress = verifiedPayload.payload.address;
 
 	try {
-		// Check if user exists
 		let user = await prisma.user.findUnique({
 			where: {
 				walletAddress: walletAddress,
 			},
 		});
 
-		// If user doesn't exist, create one
 		if (!user) {
 			user = await prisma.user.create({
 				data: {
@@ -71,20 +58,17 @@ export async function login(payload: VerifyLoginPayloadParams) {
 			});
 		}
 
-		// Generate JWT
 		const jwt = await thirdwebAuth.generateJWT({
 			payload: verifiedPayload.payload,
 		});
 
-		// Store JWT in cookie with proper settings
 		const c = cookies();
 		c.set("jwt", jwt, {
 			httpOnly: true,
 			secure: isProd,
 			sameSite: "strict",
-			maxAge: 60 * 60 * 24 * 7, // 7 days
+			maxAge: 60 * 60 * 24 * 7,
 		});
-		console.log("JWT issued and saved in cookie.");
 
 	} catch (error) {
 		console.error("Database error during login:", error);
@@ -92,7 +76,6 @@ export async function login(payload: VerifyLoginPayloadParams) {
 	}
 }
 
-// 4. Check if logged in
 export async function isLoggedIn() {
 	const c = cookies();
 	const jwt = c.get("jwt");
@@ -106,15 +89,12 @@ export async function isLoggedIn() {
 		return authResult.valid;
 	} catch (error) {
 		console.error("JWT verification error:", error);
-		// Clear invalid JWT
 		c.delete("jwt");
 		return false;
 	}
 }
 
-// 5. Logout
 export async function logout() {
 	const c = cookies();
 	c.delete("jwt");
-	console.log("JWT cookie cleared. User logged out.");
 }
