@@ -13,7 +13,7 @@ import { prisma } from "@/lib/db";
 
 const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
-const domain: string = process.env.NEXT_PUBLIC_THIRDWEB_AUTH_DOMAIN || "";
+const domain: string = process.env.AUTH_DOMAIN || "";
 const isProd = process.env.NODE_ENV === "production";
 
 const client = createThirdwebClient({ secretKey });
