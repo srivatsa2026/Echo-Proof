@@ -24,10 +24,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <ReduxProvider>
           <ThirdwebProvider>
-            <AuthGuard>
+            {/* <AuthGuard>
               {children}
               <Toaster />
-            </AuthGuard>
+            </AuthGuard> */}
+            {children}
+            <Toaster />
           </ThirdwebProvider>
         </ReduxProvider>
       </body>
