@@ -8,23 +8,20 @@ import {
 } from "thirdweb/auth";
 import { privateKeyToAccount } from "thirdweb/wallets";
 import { createThirdwebClient } from "thirdweb";
-
 import { prisma } from "@/lib/db";
+import thirdwebAuth from "@/lib/server-client";
 
 const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
 const domain: string = process.env.AUTH_DOMAIN || "";
 const isProd = process.env.NODE_ENV === "production";
-console.log("SECRET_KEY:", process.env.SECRET_KEY);
-console.log("ACCOUNT_PRIVATE_KEY:", process.env.ACCOUNT_PRIVATE_KEY);
-console.log("AUTH_DOMAIN from enxt :", process.env.NEXT_PUBLIC_THIRDWEB_AUTH_DOMAIN);
-const client = createThirdwebClient({ secretKey });
+// const client = createThirdwebClient({ secretKey });
 
-const thirdwebAuth = createAuth({
-	domain: domain,
-	client,
-	adminAccount: privateKeyToAccount({ client, privateKey }),
-});
+// const thirdwebAuth = createAuth({
+// 	domain: domain,
+// 	client,
+// 	adminAccount: privateKeyToAccount({ client, privateKey }),
+// });
 
 export async function generatePayload(payload: GenerateLoginPayloadParams) {
 	return thirdwebAuth.generatePayload(payload);
