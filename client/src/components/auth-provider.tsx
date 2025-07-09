@@ -21,7 +21,8 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
 
     // Check Redux state for existing authentication
     const isAuthenticated = useSelector((state: any) => state.user.isAuthenticated);
-    const userWalletAddress = useSelector((state: any) => state.user.smart_wallet_address);
+    // Only declare userWalletAddress once using wallet_address from Redux
+    const userWalletAddress = useSelector((state: any) => state.user.wallet_address);
 
     // Check if current path is public (doesn't require auth)
     const isPublicPath =
@@ -34,19 +35,19 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
         /^\/join-meeting(\/[^\/]+)?$/.test(pathname);
 
     useEffect(() => {
-        console.log('AuthGuard: Pathname changed to:', pathname);
-        console.log('AuthGuard: Is public path:', isPublicPath);
+        // console.log('AuthGuard: Pathname changed to:', pathname);
+        // console.log('AuthGuard: Is public path:', isPublicPath);
 
         // If it's a public path, don't check authentication
         if (isPublicPath) {
-            console.log('AuthGuard: Public path, skipping auth check');
+            // console.log('AuthGuard: Public path, skipping auth check');
             setIsAuthenticating(false);
             return;
         }
 
         // If already authenticated in Redux state, skip auth check
         if (isAuthenticated && userWalletAddress) {
-            console.log('AuthGuard: Already authenticated in Redux state');
+            // console.log('AuthGuard: Already authenticated in Redux state');
             setIsAuthenticating(false);
             return;
         }
@@ -54,37 +55,32 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
         const checkAuth = () => {
             // JWT check removed; handled by middleware
             const wallet_address = activeWallet?.getAdminAccount?.()?.address;
-            const smart_wallet_address = activeWallet?.getAccount()?.address;
 
-            console.log('AuthGuard: Wallet addresses:', {
-                hasActiveWallet: !!activeWallet,
-                wallet_address: wallet_address ? 'present' : 'missing',
-                smart_wallet_address: smart_wallet_address ? 'present' : 'missing'
-            });
 
-            if (!wallet_address || !smart_wallet_address) {
-                console.log('Wallet not connected, attempt:', authAttempts + 1);
+
+            if (!wallet_address) {
+                // console.log('Wallet not connected, attempt:', authAttempts + 1);
                 setAuthAttempts(prev => prev + 1);
 
                 // Try again after a short delay, but limit attempts
                 if (authAttempts < 15) { // Increased attempts for slower connections
                     setTimeout(checkAuth, 1500); // Increased delay
                 } else {
-                    console.log('Max auth attempts reached, redirecting to signin');
+                    // console.log('Max auth attempts reached, redirecting to signin');
                     router.push('/signin');
                 }
                 return;
             }
 
-            console.log('Authentication successful, wallet addresses:', { wallet_address, smart_wallet_address });
-            dispatch(stateLogin({ wallet_address, smart_wallet_address }));
+            // console.log('Authentication successful, wallet addresses:', { wallet_address, smart_wallet_address });
+            dispatch(stateLogin({ wallet_address }));
             dispatch<any>(getUserDetails());
             setIsAuthenticating(false);
         };
 
         // Start authentication check with a small initial delay
         const initialDelay = setTimeout(() => {
-            console.log('AuthGuard: Starting auth check after initial delay');
+            // console.log('AuthGuard: Starting auth check after initial delay');
             checkAuth();
         }, 500);
 

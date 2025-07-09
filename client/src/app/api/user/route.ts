@@ -74,6 +74,7 @@ export async function GET(req: Request) {
         if (!payload.valid) {
             return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
         }
+        console.log("the payload from the get user is ", payload)
 
         const walletAddress = payload.parsedJWT.sub;
         console.log("the wallet address of the user is ", walletAddress);

@@ -18,7 +18,7 @@ const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: "localhost",
+	domain: "localhost:3000",
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
@@ -37,6 +37,7 @@ export async function generatePayload(payload: GenerateLoginPayloadParams) {
 // 3. Login - Check if user exists, if not create one
 export async function login(payload: VerifyLoginPayloadParams) {
 	const verifiedPayload = await thirdwebAuth.verifyPayload(payload);
+	console.log("the verified pay load is from the auth.ts ", verifiedPayload)
 
 	if (!verifiedPayload.valid) {
 		throw new Error("Invalid wallet signature. Authentication failed.");
