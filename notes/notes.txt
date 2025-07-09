@@ -251,7 +251,7 @@ export default function ChatroomPage() {
         const sender = msg.sender ? {
           id: msg.sender.id,
           name: msg.sender.name || "Unknown User",
-          smart_wallet_address: msg.sender.smartWalletAddress || msg.sender.smart_wallet_address,
+          smart_wallet_address: msg.sender.smart_wallet_address || msg.sender.smart_wallet_address,
           wallet_address: msg.sender.walletAddress || msg.sender.wallet_address
         } : {
           id: msg.senderId || "unknown",

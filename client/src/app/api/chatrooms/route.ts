@@ -76,7 +76,6 @@ export async function POST(req: Request) {
                             id: true,
                             name: true,
                             walletAddress: true,
-                            smartWalletAddress: true,
                             profileImage: true
                         }
                     }
@@ -163,7 +162,6 @@ export async function GET(req: Request) {
                         id: true,
                         name: true,
                         walletAddress: true,
-                        smartWalletAddress: true,
                         profileImage: true
                     }
                 },
@@ -177,7 +175,6 @@ export async function GET(req: Request) {
                                 id: true,
                                 name: true,
                                 walletAddress: true,
-                                smartWalletAddress: true,
                                 profileImage: true
                             }
                         }

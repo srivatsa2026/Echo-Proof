@@ -74,7 +74,6 @@ export default function ChatroomPage() {
     return found ? found.title : "Chatroom";
   });
   const wallet = useActiveWallet()
-  const smart_wallet_address = wallet?.getAccount()?.address
   const wallet_address = wallet?.getAdminAccount?.()?.address
   const userId = useSelector((state: any) => state.user.id)
 
@@ -132,7 +131,7 @@ export default function ChatroomPage() {
         // Check if message is encrypted
         if (msg.encryptedSymmetricKey) {
           try {
-            const walletAddress = smart_wallet_address || wallet_address || "unknown";
+            const walletAddress = wallet_address || "unknown";
             decryptedContent = await decryptMessage(
               msg.message,
               msg.encryptedSymmetricKey,
@@ -150,8 +149,8 @@ export default function ChatroomPage() {
         const sender = msg.sender ? {
           id: msg.sender.id,
           name: msg.sender.name || "Unknown User",
-          smart_wallet_address: msg.sender.smartWalletAddress || msg.sender.smart_wallet_address,
-          wallet_address: msg.sender.walletAddress || msg.sender.wallet_address
+          smart_wallet_address: msg.sender.smart_wallet_address,
+          wallet_address: msg.sender.wallet_address
         } : {
           id: msg.senderId || "unknown",
           name: "Unknown User",
@@ -187,7 +186,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, toast, wallet, smart_wallet_address, wallet_address]);
+  }, [chatroomId, toast, wallet, wallet_address]);
 
   // Initial load
   useEffect(() => {
@@ -368,7 +367,7 @@ export default function ChatroomPage() {
             // Check if message is encrypted
             if (msg.encryptedSymmetricKey) {
               try {
-                const walletAddress = smart_wallet_address || wallet_address || "unknown";
+                const walletAddress = wallet_address || "unknown";
                 decryptedContent = await decryptMessage(
                   msg.content || msg.message,
                   msg.encryptedSymmetricKey,
@@ -474,7 +473,7 @@ export default function ChatroomPage() {
           // Decrypt the message if it's encrypted
           let decryptedContent = message.content
           if (message.encryptedSymmetricKey) {
-            const walletAddress = smart_wallet_address || wallet_address || "unknown"
+            const walletAddress = wallet_address || "unknown"
 
             decryptedContent = await decryptMessage(
               message.content,
@@ -487,7 +486,7 @@ export default function ChatroomPage() {
 
           // Check if this is our own message to prevent duplicates
           const isOwnMessage = message.sender?.id === userId ||
-            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
+            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === wallet_address) ||
             (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
 
           console.log("📨 Message ownership check:", {
@@ -501,7 +500,7 @@ export default function ChatroomPage() {
           setMessages(prev => {
             // Check if this is our own message and we have a pending local message
             const isOwnMessage = message.sender?.id === userId ||
-              (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === smart_wallet_address) ||
+              (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === wallet_address) ||
               (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
 
             if (isOwnMessage) {
@@ -571,7 +570,7 @@ export default function ChatroomPage() {
             // Check if message is encrypted
             if (msg.encryptedSymmetricKey) {
               try {
-                const walletAddress = smart_wallet_address || wallet_address || "unknown";
+                const walletAddress = wallet_address || "unknown";
                 decryptedContent = await decryptMessage(
                   msg.content || msg.message,
                   msg.encryptedSymmetricKey,
@@ -687,7 +686,7 @@ export default function ChatroomPage() {
       isMounted = false;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [retryCount, chatroomId, username, wallet, smart_wallet_address, wallet_address, toast]);
+  }, [retryCount, chatroomId, username, wallet, wallet_address, toast]);
   // --- END NEW SOCKET CONNECTION LOGIC ---
 
   const sendMessage = async () => {
@@ -704,7 +703,7 @@ export default function ChatroomPage() {
     console.log("📤 Sending message:", message)
 
     // Use wallet from component level
-    const walletAddress = smart_wallet_address || wallet_address || "unknown"
+    const walletAddress = wallet_address || "unknown"
 
     try {
       // Encrypt the message before sending
@@ -745,7 +744,7 @@ export default function ChatroomPage() {
         sender: {
           id: userId || "unknown-id",
           name: username || "unknown",
-          smart_wallet_address: smart_wallet_address,
+          smart_wallet_address: undefined,
           wallet_address: wallet_address
         },
         content: message, // Show original message locally
@@ -756,7 +755,7 @@ export default function ChatroomPage() {
       console.log("📤 Creating local message:", {
         userId: userId,
         username: username,
-        smart_wallet_address: smart_wallet_address,
+        smart_wallet_address: undefined,
         wallet_address: wallet_address
       });
 
@@ -770,7 +769,7 @@ export default function ChatroomPage() {
         message: encryptedMessage,
         encryptedSymmetricKey: encryptedSymmetricKey,
         username: username,
-        smart_wallet_address: smart_wallet_address
+        wallet_address: wallet_address
       })
 
       socket.emit("message", {
@@ -779,7 +778,7 @@ export default function ChatroomPage() {
         message: encryptedMessage, // Send encrypted message
         encryptedSymmetricKey: encryptedSymmetricKey, // Send encryption key
         username: username,
-        smart_wallet_address: smart_wallet_address
+        wallet_address: wallet_address
       })
 
       setMessage("")
@@ -788,7 +787,7 @@ export default function ChatroomPage() {
       console.error("Error details:", {
         message: message,
         chatroomId: chatroomId,
-        walletAddress: smart_wallet_address || wallet_address,
+        walletAddress: wallet_address,
         hasWallet: !!wallet,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : 'No stack trace'
@@ -1027,7 +1026,7 @@ export default function ChatroomPage() {
                   {messages.map((msg) => {
                     // Check if current user is the sender using exact ID match first, then wallet addresses
                     const isCurrentUser = msg.sender?.id === userId ||
-                      (msg.sender?.smart_wallet_address && msg.sender.smart_wallet_address === smart_wallet_address) ||
+                      (msg.sender?.smart_wallet_address && msg.sender.smart_wallet_address === wallet_address) ||
                       (msg.sender?.wallet_address && msg.sender.wallet_address === wallet_address);
 
                     console.log("🔍 Rendering message:", {
@@ -1037,7 +1036,7 @@ export default function ChatroomPage() {
                       senderSmartWallet: msg.sender?.smart_wallet_address,
                       senderWallet: msg.sender?.wallet_address,
                       userId: userId,
-                      smart_wallet_address: smart_wallet_address,
+                      smart_wallet_address: undefined,
                       wallet_address: wallet_address,
                       isCurrentUser: isCurrentUser,
                       pending: msg.pending,

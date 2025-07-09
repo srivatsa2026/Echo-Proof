@@ -30,7 +30,6 @@ export default function SettingsPage() {
   const activeWallet = useActiveWallet()
 
   const wallet_address = activeWallet?.getAdminAccount?.()?.address ?? ""
-  const smart_wallet_address = activeWallet?.getAccount?.()?.address ?? ""
 
   const user_name = useSelector((state: any) => state.user.name)
   const user_email = useSelector((state: any) => state.user.email)
@@ -128,25 +127,6 @@ export default function SettingsPage() {
                     <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Admin Wallet Address</p>
                       <p className="text-sm font-mono break-all">{wallet_address || "Not connected"}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Smart Wallet */}
-                <Card className="bg-secondary/50 border-primary/20">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                        <Wallet className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Smart Wallet</p>
-                        <p className="text-xs text-muted-foreground">Secondary Smart Contract Wallet</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 p-3 bg-background rounded-md border border-border/50">
-                      <p className="text-xs text-muted-foreground mb-1">Smart Wallet Address</p>
-                      <p className="text-sm font-mono break-all">{smart_wallet_address || "Not connected"}</p>
                     </div>
                   </CardContent>
                 </Card>

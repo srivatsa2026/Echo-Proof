@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         const { data: userData, error: userError } = await supabase
             .from("users")
             .select("*")
-            .eq("smart_wallet_address", walletAddress)
+            .eq("wallet_address", walletAddress)
             .maybeSingle();
 
         if (userError || !userData) {

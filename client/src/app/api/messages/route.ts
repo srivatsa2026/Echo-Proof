@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
                 // Check if user is a member of the chatroom
                 const user = await prisma.user.findUnique({
-                    where: { smartWalletAddress: walletAddress }
+                    where: { walletAddress: walletAddress }
                 });
 
                 if (user) {
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
                         id: true,
                         name: true,
                         profileImage: true,
-                        smartWalletAddress: true
+                        walletAddress: true
                     }
                 },
                 chatroom: {
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
                     id: message.sender.id,
                     name: message.sender.name,
                     profileImage: message.sender.profileImage,
-                    smartWalletAddress: message.sender.smartWalletAddress
+                    walletAddress: message.sender.walletAddress
                 },
                 chatroom: message.chatroom
             };
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
         // Find user
         const user = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
                         id: true,
                         name: true,
                         profileImage: true,
-                        smartWalletAddress: true
+                        walletAddress: true
                     }
                 },
                 chatroom: {
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
                 id: newMessage.sender.id,
                 name: newMessage.sender.name,
                 profileImage: newMessage.sender.profileImage,
-                smartWalletAddress: newMessage.sender.smartWalletAddress
+                walletAddress: newMessage.sender.walletAddress
             },
             chatroom: newMessage.chatroom
         };
