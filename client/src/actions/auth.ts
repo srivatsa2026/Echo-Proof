@@ -17,8 +17,9 @@ const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
 const environment = process.env.NODE_ENV;
 const isProd = environment === "production";
 
+// Fix: Use proper protocol for dev domain
 const prodDomain = "https://echo-proof.vercel.app";
-const devDomain = "localhost:3000";
+const devDomain = "http://localhost:3000"; // Added http:// protocol
 
 console.log("NODE_ENV:", process.env.NODE_ENV, "environment:", environment);
 
@@ -75,9 +76,14 @@ export async function login(payload: VerifyLoginPayloadParams) {
 			payload: verifiedPayload.payload,
 		});
 
-		// Store JWT in cookie
+		// Store JWT in cookie with proper settings
 		const c = cookies();
-		c.set("jwt", jwt);
+		c.set("jwt", jwt, {
+			httpOnly: true,
+			secure: isProd,
+			sameSite: "strict",
+			maxAge: 60 * 60 * 24 * 7, // 7 days
+		});
 		console.log("JWT issued and saved in cookie.");
 
 	} catch (error) {
@@ -95,8 +101,15 @@ export async function isLoggedIn() {
 		return false;
 	}
 
-	const authResult = await thirdwebAuth.verifyJWT({ jwt: jwt.value });
-	return authResult.valid;
+	try {
+		const authResult = await thirdwebAuth.verifyJWT({ jwt: jwt.value });
+		return authResult.valid;
+	} catch (error) {
+		console.error("JWT verification error:", error);
+		// Clear invalid JWT
+		c.delete("jwt");
+		return false;
+	}
 }
 
 // 5. Logout
@@ -104,4 +117,9 @@ export async function logout() {
 	const c = cookies();
 	c.delete("jwt");
 	console.log("JWT cookie cleared. User logged out.");
+}
+
+// 6. Helper function to get current domain
+export function getCurrentDomain() {
+	return isProd ? prodDomain : devDomain;
 }
