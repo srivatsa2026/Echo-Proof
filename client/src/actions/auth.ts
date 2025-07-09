@@ -15,7 +15,9 @@ const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
 const domain: string = process.env.AUTH_DOMAIN || "";
 const isProd = process.env.NODE_ENV === "production";
-
+console.log("SECRET_KEY:", process.env.SECRET_KEY);
+console.log("ACCOUNT_PRIVATE_KEY:", process.env.ACCOUNT_PRIVATE_KEY);
+console.log("AUTH_DOMAIN:", process.env.AUTH_DOMAIN);
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
