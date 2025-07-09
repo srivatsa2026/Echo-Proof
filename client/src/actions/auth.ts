@@ -14,18 +14,24 @@ import { prisma } from "@/lib/db";
 // 1. Setup thirdweb client and auth
 const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
-const environment = process.env.NODE_ENV
+const environment = process.env.NODE_ENV;
+const isProd = environment === "production";
+
+const prodDomain = "https://echo-proof.vercel.app";
+const devDomain = "localhost:3000";
+
+console.log("NODE_ENV:", process.env.NODE_ENV, "environment:", environment);
 
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: environment === "development" ? "localhost:3000" : "https://echo-proof.vercel.app",
+	domain: isProd ? prodDomain : devDomain,
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
 		statement: "Click Sign only means you have proved this wallet is owned by you. We will use the public wallet address to fetch your NFTs. This request will not trigger any blockchain transaction or cost any gas fees.",
 		version: "1",
-		uri: environment === "development" ? "localhost:3000" : "https://echo-proof.vercel.app",
+		uri: isProd ? prodDomain : devDomain,
 	},
 });
 
