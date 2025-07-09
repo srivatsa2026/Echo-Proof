@@ -70,7 +70,7 @@ export async function GET(req: Request) {
         }
 
         const payload = await thirdwebAuth.verifyJWT({ jwt });
-
+        console.log("the payload from the users route is ", payload)
         if (!payload.valid) {
             return NextResponse.json({ message: "Invalid JWT" }, { status: 401 });
         }

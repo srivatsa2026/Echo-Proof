@@ -17,7 +17,7 @@ const domain: string = process.env.AUTH_DOMAIN || "";
 const isProd = process.env.NODE_ENV === "production";
 console.log("SECRET_KEY:", process.env.SECRET_KEY);
 console.log("ACCOUNT_PRIVATE_KEY:", process.env.ACCOUNT_PRIVATE_KEY);
-console.log("AUTH_DOMAIN:", process.env.AUTH_DOMAIN);
+console.log("AUTH_DOMAIN from enxt :", process.env.NEXT_PUBLIC_THIRDWEB_AUTH_DOMAIN);
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
@@ -65,6 +65,7 @@ export async function login(payload: VerifyLoginPayloadParams) {
 			secure: isProd,
 			sameSite: "strict",
 			maxAge: 60 * 60 * 24 * 7,
+			domain: domain
 		});
 
 	} catch (error) {

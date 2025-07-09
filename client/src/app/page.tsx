@@ -198,7 +198,7 @@ export default function HomePage() {
             <Link href="/" className="text-sm hover:text-[#ff6600] transition-colors">
               Home
             </Link>
-            <Link href="/learn-more" className="text-sm text-[#ff6600]">
+            <Link href="/learn-more" className="text-sm ">
               Learn More
             </Link>
             <a
