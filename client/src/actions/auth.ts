@@ -25,7 +25,7 @@ const thirdwebAuth = createAuth({
 	login: {
 		statement: "Click Sign only means you have proved this wallet is owned by you. We will use the public wallet address to fetch your NFTs. This request will not trigger any blockchain transaction or cost any gas fees.",
 		version: "1",
-		uri: "localhost:3000",
+		uri: environment === "development" ? "localhost:3000" : "https://echo-proof.vercel.app",
 	},
 });
 
