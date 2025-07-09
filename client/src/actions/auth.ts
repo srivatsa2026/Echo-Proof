@@ -14,11 +14,12 @@ import { prisma } from "@/lib/db";
 // 1. Setup thirdweb client and auth
 const secretKey: string = process.env.SECRET_KEY || "";
 const privateKey: string = process.env.ACCOUNT_PRIVATE_KEY || "";
+const environment = process.env.NODE_ENV
 
 const client = createThirdwebClient({ secretKey });
 
 const thirdwebAuth = createAuth({
-	domain: "localhost:3000",
+	domain: environment === "development" ? "localhost:3000" : "https://echo-proof.vercel.app",
 	client,
 	adminAccount: privateKeyToAccount({ client, privateKey }),
 	login: {
