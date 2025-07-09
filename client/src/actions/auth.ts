@@ -118,8 +118,3 @@ export async function logout() {
 	c.delete("jwt");
 	console.log("JWT cookie cleared. User logged out.");
 }
-
-// 6. Helper function to get current domain
-export function getCurrentDomain() {
-	return isProd ? prodDomain : devDomain;
-}
