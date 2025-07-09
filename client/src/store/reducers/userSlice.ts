@@ -7,7 +7,6 @@ const initialState: {
     isAuthenticated: boolean;
     email: string;
     wallet_address: string;
-    smart_wallet_address: string;
     userPlan: string;
     profileImage: string | null;
     loading: boolean;
@@ -18,7 +17,6 @@ const initialState: {
     isAuthenticated: false,
     email: "echoProof@echo.com",
     wallet_address: "",
-    smart_wallet_address: "",
     userPlan: "free",
     profileImage: null,
     loading: false,
@@ -29,10 +27,10 @@ const initialState: {
 export const registerUser = createAsyncThunk(
     "user/register",
     async (
-        { smartWalletAddress, walletAddress, toast, router }: any,
+        { walletAddress, toast, router }: any,
         { rejectWithValue }
     ) => {
-        if (!smartWalletAddress || !walletAddress) {
+        if (!walletAddress) {
             toast({
                 title: "Wallet not connected",
                 description: "Please connect your wallet to register.",
@@ -43,7 +41,6 @@ export const registerUser = createAsyncThunk(
 
         try {
             const response = await axios.post("/api/user", {
-                smart_wallet_address: smartWalletAddress,
                 wallet_address: walletAddress,
             });
 
@@ -139,7 +136,6 @@ const userSlice = createSlice({
     reducers: {
         stateLogin: (state, action) => {
             state.isAuthenticated = true;
-            state.smart_wallet_address = action.payload.smart_wallet_address;
             state.wallet_address = action.payload.wallet_address;
             state.name = action.payload.name || state.name;
             state.email = action.payload.email || state.email;
@@ -157,7 +153,6 @@ const userSlice = createSlice({
             })
             .addCase(registerUser.fulfilled, (state, action) => {
                 state.loading = false;
-                state.smart_wallet_address = action.payload.smart_wallet_address;
                 state.wallet_address = action.payload.wallet_address;
                 state.isAuthenticated = true;
                 state.name = action.payload.name || state.name;
@@ -194,7 +189,6 @@ const userSlice = createSlice({
                 state.id = user.id || "";
                 state.name = user.name || "Echo-Client";
                 state.email = user.email || "echoProof@echo.com";
-                state.smart_wallet_address = user.smartWalletAddress || "";
                 state.wallet_address = user.walletAddress || "";
                 state.userPlan = user.userPlan || "free";
                 state.profileImage = user.profileImage || null;

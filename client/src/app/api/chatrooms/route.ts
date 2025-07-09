@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         // Check if user exists in the database using the wallet address
         const userData = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
@@ -135,7 +135,7 @@ export async function GET(req: Request) {
         // Find user
         const userData = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 

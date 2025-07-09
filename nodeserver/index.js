@@ -312,7 +312,7 @@ io.on('connection', (socket) => {
         logger.info(`📩 Encryption key received:`, data.encryptedSymmetricKey);
 
         const userDbId = data.userDbId;
-        const smartWalletAddress = data.smart_wallet_address;
+        const walletAddress = data.wallet_address;
         const roomId = data.room;
         const messageText = data.message;
         const encryptedSymmetricKey = data.encryptedSymmetricKey; // New field for encryption key
@@ -323,7 +323,7 @@ io.on('connection', (socket) => {
         let userDetails = null;
         try {
             const userResult = await sql`
-                SELECT name, "smartWalletAddress" 
+                SELECT name, "walletAddress" 
                 FROM users 
                 WHERE id = ${userDbId}
             `;
@@ -359,7 +359,7 @@ io.on('connection', (socket) => {
             sender: {
                 id: userDbId, // Use database user ID instead of socket ID
                 name: userDetails?.name || userName || 'Unknown User',
-                smart_wallet_address: userDetails?.smartWalletAddress || smartWalletAddress
+                wallet_address: userDetails?.walletAddress || walletAddress
             },
             content: messageText, // This is now the encrypted message
             encryptedSymmetricKey: encryptedSymmetricKey, // Include encryption key
@@ -445,7 +445,6 @@ io.on('connection', (socket) => {
                     cm."encryptedSymmetricKey", 
                     cm."sentAt",
                     u.name as sender_name,
-                    u."smartWalletAddress" as sender_smart_wallet_address,
                     u."walletAddress" as sender_wallet_address
                 FROM chat_messages cm
                 LEFT JOIN users u ON cm."senderId" = u.id
@@ -460,7 +459,7 @@ io.on('connection', (socket) => {
                 sender: {
                     id: row.senderId,
                     name: row.sender_name || 'Unknown User',
-                    smart_wallet_address: row.sender_smart_wallet_address,
+                    wallet_address: row.sender_wallet_address,
                     wallet_address: row.sender_wallet_address
                 },
                 content: row.message,

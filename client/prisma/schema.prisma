@@ -14,7 +14,6 @@ model User {
   profileImage        String?
   userPlan            String               @default("free")
   createdAt           DateTime             @default(now())
-  smartWalletAddress  String               @unique @db.VarChar(42)
   messages            ChatMessage[]
   chatroomMemberships ChatroomMember[]
   chatrooms           Chatroom[]

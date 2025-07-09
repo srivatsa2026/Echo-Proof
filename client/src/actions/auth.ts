@@ -42,13 +42,13 @@ export async function login(payload: VerifyLoginPayloadParams) {
 		throw new Error("Invalid wallet signature. Authentication failed.");
 	}
 
-	const smartWalletAddress = verifiedPayload.payload.address;
+	const walletAddress = verifiedPayload.payload.address;
 
 	try {
 		// Check if user exists
 		let user = await prisma.user.findUnique({
 			where: {
-				smartWalletAddress: smartWalletAddress,
+				walletAddress: walletAddress,
 			},
 		});
 
@@ -56,9 +56,8 @@ export async function login(payload: VerifyLoginPayloadParams) {
 		if (!user) {
 			user = await prisma.user.create({
 				data: {
-					walletAddress: smartWalletAddress, // Using same address for both fields
-					smartWalletAddress: smartWalletAddress,
-					name: `User ${smartWalletAddress.slice(0, 6)}`, // Default name
+					walletAddress: walletAddress,
+					name: `User ${walletAddress.slice(0, 6)}`,
 				},
 			});
 		}

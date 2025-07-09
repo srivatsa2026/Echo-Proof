@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         // Find user by smart wallet address
         const userData = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
                     select: {
                         id: true,
                         name: true,
-                        smartWalletAddress: true
+                        walletAddress: true
                     }
                 }
             }
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
                         id: true,
                         name: true,
                         profileImage: true,
-                        smartWalletAddress: true
+                        walletAddress: true
                     }
                 }
             }
@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
                     select: {
                         id: true,
                         name: true,
-                        smartWalletAddress: true,
+                        walletAddress: true,
                         profileImage: true
                     }
                 },

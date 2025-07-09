@@ -10,13 +10,12 @@ export async function POST(req: Request) {
         // Validate input
         const body = await req.json();
         const wallet_address = body.wallet_address;
-        const smart_wallet_address = body.smart_wallet_address;
         const name = body.name || ""; // Default empty name if not provided
 
-        console.log(`address is ${wallet_address} smart wallet address is ${smart_wallet_address}`);
+        console.log(`address is ${wallet_address}`);
 
-        if (!smart_wallet_address || !wallet_address) {
-            return new Response(JSON.stringify({ message: "Missing wallet addresses" }), {
+        if (!wallet_address) {
+            return new Response(JSON.stringify({ message: "Missing wallet address" }), {
                 status: 400,
             });
         }
@@ -24,10 +23,7 @@ export async function POST(req: Request) {
         // Check if user already exists
         const existingUser = await prisma.user.findFirst({
             where: {
-                AND: [
-                    { smartWalletAddress: smart_wallet_address },
-                    { walletAddress: wallet_address }
-                ]
+                walletAddress: wallet_address
             }
         });
 
@@ -42,7 +38,6 @@ export async function POST(req: Request) {
         const newUser = await prisma.user.create({
             data: {
                 walletAddress: wallet_address,
-                smartWalletAddress: smart_wallet_address,
                 name: name,
                 userPlan: "free" // Default plan
             }
@@ -86,7 +81,7 @@ export async function GET(req: Request) {
         // Find user by smart wallet address
         const userData = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             },
             include: {
                 chatrooms: {
@@ -173,7 +168,7 @@ export async function PATCH(req: Request) {
         // Check if user exists
         const user = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
@@ -187,7 +182,7 @@ export async function PATCH(req: Request) {
         // Update user
         const updatedUser = await prisma.user.update({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             },
             data: {
                 ...(name && { name }),
@@ -233,7 +228,7 @@ export async function DELETE(req: Request) {
         // Check if user exists
         const user = await prisma.user.findUnique({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
@@ -247,7 +242,7 @@ export async function DELETE(req: Request) {
         // Delete user (this will cascade delete related records due to schema constraints)
         await prisma.user.delete({
             where: {
-                smartWalletAddress: walletAddress
+                walletAddress: walletAddress
             }
         });
 
