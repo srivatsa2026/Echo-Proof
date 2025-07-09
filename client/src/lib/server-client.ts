@@ -12,7 +12,7 @@ const client = createThirdwebClient({
 });
 
 const thirdwebAuth = createAuth({
-    domain: "localhost:3000", // your domain
+    domain: domain!,
     client,
     adminAccount: privateKeyToAccount({ client, privateKey }),
 });

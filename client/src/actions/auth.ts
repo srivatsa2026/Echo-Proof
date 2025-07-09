@@ -62,7 +62,6 @@ export async function login(payload: VerifyLoginPayloadParams) {
 			secure: isProd,
 			sameSite: "strict",
 			maxAge: 60 * 60 * 24 * 7,
-			domain: domain
 		});
 
 	} catch (error) {
