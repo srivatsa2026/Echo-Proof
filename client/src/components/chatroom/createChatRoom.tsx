@@ -26,6 +26,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Info } from "lucide-react"
 
+export enum TokenStandard {
+    ERC20 = 'ERC20',
+    ERC721 = 'ERC721',
+    ERC1155 = 'ERC1155',
+}
+
 interface Props {
     onCreated?: (sessionId: string) => void
 }
@@ -152,7 +158,17 @@ export function CreateChatroomCard({ onCreated }: Props) {
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="tokenStandard" className="text-right">Token Standard</Label>
-                                            <Input id="tokenStandard" value={tokenStandard} onChange={(e) => setTokenStandard(e.target.value)} placeholder="ERC-20, ERC-721, etc." className="col-span-3" />
+                                            <select
+                                                id="tokenStandard"
+                                                value={tokenStandard}
+                                                onChange={e => setTokenStandard(e.target.value)}
+                                                className="col-span-3 border rounded px-2 py-1 bg-background text-foreground"
+                                            >
+                                                <option value="">Select standard</option>
+                                                <option value={TokenStandard.ERC20}>ERC-20</option>
+                                                <option value={TokenStandard.ERC721}>ERC-721</option>
+                                                <option value={TokenStandard.ERC1155}>ERC-1155</option>
+                                            </select>
                                         </div>
                                     </>
                                 )}

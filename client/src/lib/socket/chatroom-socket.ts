@@ -3,13 +3,13 @@ import { io, Socket } from "socket.io-client"
 
 let socket: Socket | null = null;
 
-export function getSocket(username: string) {
+export function getSocket(username: string, walletAddress?: string) {
     // If no socket or socket is disconnected, create a new one
     if (!socket || socket.disconnected) {
         socket = io(process.env.NEXT_PUBLIC_SOCKET_SERVER || "http://localhost:5050", {
             transports: ["websocket", "polling"],
             autoConnect: true,
-            auth: { username },
+            auth: { username, walletAddress },
             reconnection: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 3000,
