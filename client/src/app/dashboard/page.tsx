@@ -28,7 +28,6 @@ import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
 import { useActiveWallet } from "thirdweb/react"
 import { useDispatch } from "react-redux"
 import UserActivity from "@/components/dashboard/userActivity"
-import JoinChatroom from "@/components/chatroom/joinChatroom"
 
 const upcomingMeetings = [
   {
@@ -165,7 +164,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <JoinChatroom />
 
         {/* the below commented card is for the meeting scheduling */}
         {/* <Card>

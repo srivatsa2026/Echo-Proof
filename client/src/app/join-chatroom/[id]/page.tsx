@@ -20,6 +20,7 @@ import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
 import { getSocket } from "@/lib/socket/chatroom-socket"
 import { useToast } from "@/hooks/use-toast"
+import { useActiveWallet } from "thirdweb/react"
 
 interface ChatroomDetails {
     id: string
@@ -43,11 +44,14 @@ export default function JoinChatroomPage() {
     const params = useParams()
     const chatroomId = params.id as string
 
+    const wallet = useActiveWallet();
+
     // Redux state
     const chatroom = useSelector((state: any) => state.chatroom)
     const user = useSelector((state: any) => state.user)
     const { loading, error, title, active, tokenGated, tokenAddress, tokenStandard, userStatus, members = [] } = chatroom
     const { isAuthenticated } = user
+    console.log(`the user is ${user} and the user wallet address is ${user.wallet_address}`)
 
     // Ensure user details are loaded if not authenticated
     useEffect(() => {
@@ -75,13 +79,19 @@ export default function JoinChatroomPage() {
     useEffect(() => {
         let socket: any = null;
         if (username) {
-            socket = getSocket(username);
+            // Use the top-level wallet variable
+            const walletAddress = wallet?.getAccount?.()?.address || user.wallet_address;
+            socket = getSocket(username, walletAddress);
             const handleConnect = () => {
                 // Emit join event after connection
-                socket.emit("join", {
+                const joinPayload: any = {
                     room: chatroomId,
                     username: username
-                });
+                };
+                if (tokenGated && user.wallet_address) {
+                    joinPayload.walletAddress = user.wallet_address;
+                }
+                socket.emit("join", joinPayload);
             };
             const handleConnectError = (err: any) => {
                 // Optionally handle connection error (e.g., show toast or set error state)
@@ -130,7 +140,7 @@ export default function JoinChatroomPage() {
                 socket.off("user_left")
             }
         }
-    }, [username, chatroomId])
+    }, [username, chatroomId, user.wallet_address, tokenGated, wallet]);
 
     const { toast } = useToast();
 
@@ -142,8 +152,15 @@ export default function JoinChatroomPage() {
             // Update user profile with the chosen username
             await dispatch<any>(updateUserProfile({ name: username, toast })).unwrap()
             // Initiate socket connection with username
-            getSocket(username)
-            await dispatch<any>(joinChatroom({ roomId: chatroomId })).unwrap()
+            // Use the top-level wallet variable
+            const walletAddress = wallet?.getAccount?.()?.address || user.wallet_address;
+            getSocket(username, walletAddress)
+            // Send wallet address if tokenGated
+            const joinPayload: any = { roomId: chatroomId };
+            if (tokenGated && user.wallet_address) {
+                joinPayload.walletAddress = user.wallet_address;
+            }
+            await dispatch<any>(joinChatroom(joinPayload)).unwrap()
             // Optionally redirect or show success
             router.push(`/chatroom/${chatroomId}`)
         } catch (err) {

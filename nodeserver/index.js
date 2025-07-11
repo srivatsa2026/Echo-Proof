@@ -3,8 +3,24 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
-require('dotenv').config();
+const { ethers, JsonRpcProvider } = require('ethers');
 const { neon } = require('@neondatabase/serverless');
+require('dotenv').config();
+
+// Hardcoded ABIs for common token standards
+const ERC20_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)",
+    "function name() view returns (string)"
+];
+
+const ERC721_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function ownerOf(uint256 tokenId) view returns (address)",
+    "function symbol() view returns (string)",
+    "function name() view returns (string)"
+];
 
 // Configure logging
 const winston = require('winston');
@@ -75,6 +91,12 @@ async function testDatabaseConnection() {
 // Test the connection on startup
 testDatabaseConnection();
 
+// Connect to the Ethereum network using Alchemy Sepolia
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
+const ALCHEMY_SEPOLIA_URL = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
+const provider = new JsonRpcProvider(ALCHEMY_SEPOLIA_URL);
+
+
 // Routes
 app.get('/', (req, res) => {
     res.json({
@@ -127,8 +149,9 @@ io.on('connection', (socket) => {
     logger.info(`🔌 Client connected: ${userId}`);
     logger.info(`🔌 Total connected clients: ${io.engine.clientsCount}`);
 
-    // Get username from handshake auth, fallback to random if not provided
+    // Get username and walletAddress from handshake auth
     const handshakeUsername = socket.handshake.auth && socket.handshake.auth.username;
+    const handshakeWalletAddress = socket.handshake.auth && socket.handshake.auth.walletAddress;
     const username = handshakeUsername && typeof handshakeUsername === 'string' && handshakeUsername.trim() !== ''
         ? handshakeUsername.trim()
         : `User-${uuidv4().substring(0, 8)}`;
@@ -138,7 +161,8 @@ io.on('connection', (socket) => {
         sid: userId,
         name: username,
         rooms: [],
-        status: 'online'
+        status: 'online',
+        walletAddress: handshakeWalletAddress || null
     };
 
     // Send connection confirmation
@@ -192,11 +216,13 @@ io.on('connection', (socket) => {
     });
 
     // Handle joining a room
-    socket.on('join', (data) => {
+    socket.on('join', async (data) => {
         logger.info(`📥 Join request received from ${userId}:`, data);
 
         const roomId = data.room;
         const userName = data.username || users[userId]?.name || 'Unknown User';
+        const userWallet = users[userId]?.walletAddress;
+        logger.info(`the wallet address (from handshake) is ${userWallet}`);
 
         if (!roomId) {
             socket.emit('error', { message: 'Room ID is required.' });
@@ -205,51 +231,163 @@ io.on('connection', (socket) => {
 
         logger.info(`User ${userId} (${userName}) attempting to join room: ${roomId}`);
 
-        // Update user info
-        if (users[userId]) {
-            users[userId].name = userName;
-            users[userId].status = 'online';
-            if (!users[userId].rooms.includes(roomId)) {
-                users[userId].rooms.push(roomId);
+        // Fetch room details from the database
+        let roomDetails = null;
+        try {
+            const result = await sql`
+                SELECT * FROM chatrooms WHERE id = ${roomId}
+            `;
+            if (result && result.length > 0) {
+                roomDetails = result[0];
             }
+        } catch (error) {
+            logger.error(`❌ Error fetching room details: ${error.message}`);
+            socket.emit('error', { message: 'Error fetching room details.' });
+            return;
         }
 
-        // Join the room
-        socket.join(roomId);
-
-        // Track the participants in the room
-        if (!rooms[roomId]) {
-            rooms[roomId] = [];
-        }
-        if (!rooms[roomId].includes(userId)) {
-            rooms[roomId].push(userId);
+        if (!roomDetails) {
+            socket.emit('error', { message: 'Room does not exist.' });
+            return;
         }
 
-        // Create room history if it doesn't exist
-        if (!roomMessages[roomId]) {
-            roomMessages[roomId] = [];
+        if (!roomDetails.tokenGated) {
+            // Not token gated, proceed as before
+            // Update user info
+            if (users[userId]) {
+                users[userId].name = userName;
+                users[userId].status = 'online';
+                if (!users[userId].rooms.includes(roomId)) {
+                    users[userId].rooms.push(roomId);
+                }
+            }
+
+            // Join the room
+            socket.join(roomId);
+
+            // Track the participants in the room
+            if (!rooms[roomId]) {
+                rooms[roomId] = [];
+            }
+            if (!rooms[roomId].includes(userId)) {
+                rooms[roomId].push(userId);
+            }
+
+            // Create room history if it doesn't exist
+            if (!roomMessages[roomId]) {
+                roomMessages[roomId] = [];
+            }
+
+            // Get current participants
+            const participants = getRoomParticipants(roomId);
+
+            // Send a join confirmation to the user who joined
+            socket.emit('join_success', {
+                message: `You have joined the room: ${roomId}`,
+                roomId: roomId,
+                participants: participants,
+                history: roomMessages[roomId] || []
+            });
+
+            // Broadcast to other clients in the room
+            socket.to(roomId).emit('user_joined', {
+                message: `${userName} has joined the room!`,
+                username: userName,
+                userId: userId,
+                participants: participants
+            });
+
+            logger.info(`✅ User ${userId} (${userName}) successfully joined room: ${roomId}`);
+        } else {
+            // Room is token gated - check token ownership
+            logger.info(`🔒 Room ${roomId} is token gated. Checking token ownership for user.`);
+            const { tokenAddress, tokenStandard } = roomDetails;
+            if (!userWallet) {
+                socket.emit('error', { message: 'Wallet address is required for token gated rooms.' });
+                logger.warn('No wallet address provided for token gated room join attempt.');
+                return;
+            }
+
+            let abi;
+            if (tokenStandard === 'ERC721') {
+                abi = ERC721_ABI;
+            } else if (tokenStandard === 'ERC20') {
+                abi = ERC20_ABI;
+            } else {
+                logger.warn(`Unknown token standard: ${tokenStandard}`);
+                socket.emit('error', { message: 'Unknown token standard for this room.' });
+                return;
+            }
+
+            let ownsToken = false;
+            try {
+                const contract = new ethers.Contract(tokenAddress, abi, provider);
+                if (tokenStandard === 'ERC721') {
+                    // ERC721: Check balanceOf
+                    const balance = await contract.balanceOf(userWallet);
+                    ownsToken = balance && balance > 0n;
+                } else if (tokenStandard === 'ERC20') {
+                    // ERC20: Check balanceOf
+                    const balance = await contract.balanceOf(userWallet);
+                    ownsToken = balance && balance > 0n;
+                } else {
+                    logger.warn(`Unknown token standard: ${tokenStandard}`);
+                    socket.emit('error', { message: 'Unknown token standard for this room.' });
+                    return;
+                }
+            } catch (err) {
+                logger.error(`Error checking token ownership: ${err.message}`);
+                socket.emit('error', { message: 'Error verifying token ownership.' });
+                return;
+            }
+
+            if (!ownsToken) {
+                logger.info(`User ${userWallet} does NOT own required token (${tokenAddress}) for room ${roomId}.`);
+                socket.emit('error', { message: 'You do not own the required token to join this room.' });
+                return;
+            }
+
+            logger.info(`User ${userWallet} owns required token (${tokenAddress}) for room ${roomId}. Proceeding with join.`);
+            // Classic join method (same as non-token gated)
+            if (users[userId]) {
+                users[userId].name = userName;
+                users[userId].status = 'online';
+                if (!users[userId].rooms.includes(roomId)) {
+                    users[userId].rooms.push(roomId);
+                }
+            }
+
+            socket.join(roomId);
+
+            if (!rooms[roomId]) {
+                rooms[roomId] = [];
+            }
+            if (!rooms[roomId].includes(userId)) {
+                rooms[roomId].push(userId);
+            }
+
+            if (!roomMessages[roomId]) {
+                roomMessages[roomId] = [];
+            }
+
+            const participants = getRoomParticipants(roomId);
+
+            socket.emit('join_success', {
+                message: `You have joined the room: ${roomId}`,
+                roomId: roomId,
+                participants: participants,
+                history: roomMessages[roomId] || []
+            });
+
+            socket.to(roomId).emit('user_joined', {
+                message: `${userName} has joined the room!`,
+                username: userName,
+                userId: userId,
+                participants: participants
+            });
+
+            logger.info(`✅ User ${userId} (${userName}) successfully joined token gated room: ${roomId}`);
         }
-
-        // Get current participants
-        const participants = getRoomParticipants(roomId);
-
-        // Send a join confirmation to the user who joined
-        socket.emit('join_success', {
-            message: `You have joined the room: ${roomId}`,
-            roomId: roomId,
-            participants: participants,
-            history: roomMessages[roomId] || []
-        });
-
-        // Broadcast to other clients in the room
-        socket.to(roomId).emit('user_joined', {
-            message: `${userName} has joined the room!`,
-            username: userName,
-            userId: userId,
-            participants: participants
-        });
-
-        logger.info(`✅ User ${userId} (${userName}) successfully joined room: ${roomId}`);
     });
 
     // Handle leaving a room
@@ -323,8 +461,8 @@ io.on('connection', (socket) => {
         let userDetails = null;
         try {
             const userResult = await sql`
-                SELECT name, "walletAddress" 
-                FROM users 
+                SELECT name, "walletAddress"
+                FROM users
                 WHERE id = ${userDbId}
             `;
             if (userResult && userResult.length > 0) {
@@ -386,7 +524,7 @@ io.on('connection', (socket) => {
 
             // Use the standard template literal syntax with explicit null handling
             const result = await sql`
-                INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "encryptedSymmetricKey", "sentAt") 
+                INSERT INTO chat_messages (id, "chatroomId", "senderId", message, "encryptedSymmetricKey", "sentAt")
                 VALUES (${messageId}, ${roomId}, ${userDbId}, ${messageText}, ${encryptedSymmetricKey || null}, ${timestamp})
             `;
 
@@ -438,17 +576,17 @@ io.on('connection', (socket) => {
         try {
             // Fetch messages with sender information using a JOIN
             const result = await sql`
-                SELECT 
+                SELECT
                     cm.id,
-                    cm."senderId", 
-                    cm.message, 
-                    cm."encryptedSymmetricKey", 
+                    cm."senderId",
+                    cm.message,
+                    cm."encryptedSymmetricKey",
                     cm."sentAt",
                     u.name as sender_name,
                     u."walletAddress" as sender_wallet_address
                 FROM chat_messages cm
                 LEFT JOIN users u ON cm."senderId" = u.id
-                WHERE cm."chatroomId" = ${roomId} 
+                WHERE cm."chatroomId" = ${roomId}
                 ORDER BY cm."sentAt" DESC
                 LIMIT 20
             `;
@@ -550,3 +688,4 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+

@@ -74,7 +74,7 @@ export default function ChatroomPage() {
     return found ? found.title : "Chatroom";
   });
   const wallet = useActiveWallet()
-  const wallet_address = wallet?.getAdminAccount?.()?.address
+  const walletAddress = wallet?.getAccount?.()?.address
   const userId = useSelector((state: any) => state.user.id)
 
 
@@ -131,13 +131,13 @@ export default function ChatroomPage() {
         // Check if message is encrypted
         if (msg.encryptedSymmetricKey) {
           try {
-            const walletAddress = wallet_address || "unknown";
+            const wa = walletAddress || "unknown";
             decryptedContent = await decryptMessage(
               msg.message,
               msg.encryptedSymmetricKey,
               chatroomId,
               wallet,
-              walletAddress
+              wa
             );
           } catch (error) {
             console.error('Error decrypting message:', error);
@@ -186,7 +186,7 @@ export default function ChatroomPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [chatroomId, toast, wallet, wallet_address]);
+  }, [chatroomId, toast, wallet, walletAddress]);
 
   // Initial load
   useEffect(() => {
@@ -238,7 +238,7 @@ export default function ChatroomPage() {
     let retryTimeout: NodeJS.Timeout | null = null;
 
     const tryConnect = () => {
-      const chatSocket = getSocket(username);
+      const chatSocket = getSocket(username, walletAddress);
       if (!chatSocket) {
         if (retryCount < MAX_RETRIES) {
           retryTimeout = setTimeout(() => {
@@ -257,10 +257,14 @@ export default function ChatroomPage() {
         setConnectionStatus("connected");
         setIsLoading(false);
         // Join the room
-        chatSocket.emit("join", {
+        const joinPayload: any = {
           room: chatroomId,
           username: username
-        });
+        };
+        if (walletAddress) {
+          joinPayload.walletAddress = walletAddress;
+        }
+        chatSocket.emit("join", joinPayload);
         // Request message history
         chatSocket.emit("get_history", {
           room: chatroomId
@@ -302,10 +306,14 @@ export default function ChatroomPage() {
           description: "You have been reconnected to the chat server.",
         })
         // Rejoin the room
-        chatSocket.emit("join", {
+        const rejoinPayload: any = {
           room: chatroomId,
           username: username
-        })
+        };
+        if (walletAddress) {
+          rejoinPayload.walletAddress = walletAddress;
+        }
+        chatSocket.emit("join", rejoinPayload);
       })
 
       chatSocket.on("reconnect_failed", () => {
@@ -367,13 +375,13 @@ export default function ChatroomPage() {
             // Check if message is encrypted
             if (msg.encryptedSymmetricKey) {
               try {
-                const walletAddress = wallet_address || "unknown";
+                const wa = walletAddress || "unknown";
                 decryptedContent = await decryptMessage(
                   msg.content || msg.message,
                   msg.encryptedSymmetricKey,
                   chatroomId,
                   wallet,
-                  walletAddress
+                  wa
                 );
               } catch (error) {
                 console.error('Error decrypting history message:', error);
@@ -473,21 +481,21 @@ export default function ChatroomPage() {
           // Decrypt the message if it's encrypted
           let decryptedContent = message.content
           if (message.encryptedSymmetricKey) {
-            const walletAddress = wallet_address || "unknown"
+            const wa = walletAddress || "unknown"
 
             decryptedContent = await decryptMessage(
               message.content,
               message.encryptedSymmetricKey,
               chatroomId,
               wallet,
-              walletAddress
+              wa
             )
           }
 
           // Check if this is our own message to prevent duplicates
           const isOwnMessage = message.sender?.id === userId ||
-            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === wallet_address) ||
-            (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+            (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === walletAddress) ||
+            (message.sender?.wallet_address && message.sender.wallet_address === walletAddress);
 
           console.log("📨 Message ownership check:", {
             messageId: message.id,
@@ -500,8 +508,8 @@ export default function ChatroomPage() {
           setMessages(prev => {
             // Check if this is our own message and we have a pending local message
             const isOwnMessage = message.sender?.id === userId ||
-              (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === wallet_address) ||
-              (message.sender?.wallet_address && message.sender.wallet_address === wallet_address);
+              (message.sender?.smart_wallet_address && message.sender.smart_wallet_address === walletAddress) ||
+              (message.sender?.wallet_address && message.sender.wallet_address === walletAddress);
 
             if (isOwnMessage) {
               // Replace pending local message with server-confirmed message
@@ -570,13 +578,13 @@ export default function ChatroomPage() {
             // Check if message is encrypted
             if (msg.encryptedSymmetricKey) {
               try {
-                const walletAddress = wallet_address || "unknown";
+                const wa = walletAddress || "unknown";
                 decryptedContent = await decryptMessage(
                   msg.content || msg.message,
                   msg.encryptedSymmetricKey,
                   chatroomId,
                   wallet,
-                  walletAddress
+                  wa
                 );
               } catch (error) {
                 console.error('Error decrypting history message:', error);
@@ -686,7 +694,7 @@ export default function ChatroomPage() {
       isMounted = false;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [retryCount, chatroomId, username, wallet, wallet_address, toast]);
+  }, [retryCount, chatroomId, username, walletAddress, wallet]);
   // --- END NEW SOCKET CONNECTION LOGIC ---
 
   const sendMessage = async () => {
@@ -703,7 +711,7 @@ export default function ChatroomPage() {
     console.log("📤 Sending message:", message)
 
     // Use wallet from component level
-    const walletAddress = wallet_address || "unknown"
+    const wa = walletAddress || "unknown"
 
     try {
       // Encrypt the message before sending
@@ -712,14 +720,14 @@ export default function ChatroomPage() {
         message: message.substring(0, 50) + '...',
         chatroomId,
         hasWallet: !!wallet,
-        walletAddress
+        walletAddress: wa
       });
 
       const encryptionResult = await encryptMessage(
         message,
         chatroomId,
         wallet,
-        walletAddress
+        wa
       );
 
       console.log('🔐 Encryption result received:', encryptionResult);
@@ -745,7 +753,7 @@ export default function ChatroomPage() {
           id: userId || "unknown-id",
           name: username || "unknown",
           smart_wallet_address: undefined,
-          wallet_address: wallet_address
+          wallet_address: wa
         },
         content: message, // Show original message locally
         timestamp: timestamp,
@@ -756,7 +764,7 @@ export default function ChatroomPage() {
         userId: userId,
         username: username,
         smart_wallet_address: undefined,
-        wallet_address: wallet_address
+        wallet_address: wa
       });
 
       // Add to local messages
@@ -769,7 +777,7 @@ export default function ChatroomPage() {
         message: encryptedMessage,
         encryptedSymmetricKey: encryptedSymmetricKey,
         username: username,
-        wallet_address: wallet_address
+        wallet_address: wa
       })
 
       socket.emit("message", {
@@ -778,7 +786,7 @@ export default function ChatroomPage() {
         message: encryptedMessage, // Send encrypted message
         encryptedSymmetricKey: encryptedSymmetricKey, // Send encryption key
         username: username,
-        wallet_address: wallet_address
+        wallet_address: wa
       })
 
       setMessage("")
@@ -787,7 +795,7 @@ export default function ChatroomPage() {
       console.error("Error details:", {
         message: message,
         chatroomId: chatroomId,
-        walletAddress: wallet_address,
+        walletAddress: wa,
         hasWallet: !!wallet,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : 'No stack trace'
@@ -1026,8 +1034,8 @@ export default function ChatroomPage() {
                   {messages.map((msg) => {
                     // Check if current user is the sender using exact ID match first, then wallet addresses
                     const isCurrentUser = msg.sender?.id === userId ||
-                      (msg.sender?.smart_wallet_address && msg.sender.smart_wallet_address === wallet_address) ||
-                      (msg.sender?.wallet_address && msg.sender.wallet_address === wallet_address);
+                      (msg.sender?.smart_wallet_address && msg.sender.smart_wallet_address === walletAddress) ||
+                      (msg.sender?.wallet_address && msg.sender.wallet_address === walletAddress);
 
                     console.log("🔍 Rendering message:", {
                       messageId: msg.id,
@@ -1037,7 +1045,7 @@ export default function ChatroomPage() {
                       senderWallet: msg.sender?.wallet_address,
                       userId: userId,
                       smart_wallet_address: undefined,
-                      wallet_address: wallet_address,
+                      wallet_address: walletAddress,
                       isCurrentUser: isCurrentUser,
                       pending: msg.pending,
                       senderObject: msg.sender
