@@ -97,25 +97,6 @@ const ALCHEMY_SEPOLIA_URL = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_
 const provider = new JsonRpcProvider(ALCHEMY_SEPOLIA_URL);
 
 
-// Routes
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Chat Server is running!',
-        timestamp: new Date().toISOString(),
-        connectedUsers: Object.keys(users).length,
-        activeRooms: Object.keys(rooms).length
-    });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
-});
-
 
 // Helper function to get room participants
 function getRoomParticipants(roomId) {
@@ -325,6 +306,7 @@ io.on('connection', (socket) => {
                 if (tokenStandard === 'ERC721') {
                     // ERC721: Check balanceOf
                     const balance = await contract.balanceOf(userWallet);
+                    logger.info("the balance of the token is :", balance)
                     ownsToken = balance && balance > 0n;
                 } else if (tokenStandard === 'ERC20') {
                     // ERC20: Check balanceOf
