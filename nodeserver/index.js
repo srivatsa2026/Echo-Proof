@@ -116,6 +116,30 @@ function getRoomParticipants(roomId) {
     return participants;
 }
 
+// Utility function to check token ownership for ERC20/ERC721
+async function checkTokenOwnership(tokenStandard, tokenAddress, userWallet, provider) {
+    let abi;
+    if (tokenStandard === 'ERC721') {
+        abi = ERC721_ABI;
+    } else if (tokenStandard === 'ERC20') {
+        abi = ERC20_ABI;
+    } else {
+        throw new Error(`Unknown token standard: ${tokenStandard}`);
+    }
+    try {
+        const contract = new ethers.Contract(tokenAddress, abi, provider);
+        let balance;
+        if (tokenStandard === 'ERC721') {
+            balance = await contract.balanceOf(userWallet);
+        } else if (tokenStandard === 'ERC20') {
+            balance = await contract.balanceOf(userWallet);
+        }
+        return balance && balance > 0n;
+    } catch (err) {
+        throw new Error(`Error checking token ownership: ${err.message}`);
+    }
+}
+
 // Add connection event logging
 io.engine.on("connection_error", (err) => {
     logger.error("Socket.IO connection error:", err.req);
@@ -289,34 +313,9 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            let abi;
-            if (tokenStandard === 'ERC721') {
-                abi = ERC721_ABI;
-            } else if (tokenStandard === 'ERC20') {
-                abi = ERC20_ABI;
-            } else {
-                logger.warn(`Unknown token standard: ${tokenStandard}`);
-                socket.emit('error', { message: 'Unknown token standard for this room.' });
-                return;
-            }
-
             let ownsToken = false;
             try {
-                const contract = new ethers.Contract(tokenAddress, abi, provider);
-                if (tokenStandard === 'ERC721') {
-                    // ERC721: Check balanceOf
-                    const balance = await contract.balanceOf(userWallet);
-                    logger.info("the balance of the token is :", balance)
-                    ownsToken = balance && balance > 0n;
-                } else if (tokenStandard === 'ERC20') {
-                    // ERC20: Check balanceOf
-                    const balance = await contract.balanceOf(userWallet);
-                    ownsToken = balance && balance > 0n;
-                } else {
-                    logger.warn(`Unknown token standard: ${tokenStandard}`);
-                    socket.emit('error', { message: 'Unknown token standard for this room.' });
-                    return;
-                }
+                ownsToken = await checkTokenOwnership(tokenStandard, tokenAddress, userWallet, provider);
             } catch (err) {
                 logger.error(`Error checking token ownership: ${err.message}`);
                 socket.emit('error', { message: 'Error verifying token ownership.' });
@@ -330,6 +329,7 @@ io.on('connection', (socket) => {
             }
 
             logger.info(`User ${userWallet} owns required token (${tokenAddress}) for room ${roomId}. Proceeding with join.`);
+            logger.info(`User ${userWallet} has ${BigInt(ownsToken)}`);
             // Classic join method (same as non-token gated)
             if (users[userId]) {
                 users[userId].name = userName;
@@ -551,6 +551,45 @@ io.on('connection', (socket) => {
         if (!roomId) {
             socket.emit('error', { message: 'Room ID is required.' });
             return;
+        }
+
+        // Fetch room details from the database
+        let roomDetails = null;
+        try {
+            const result = await sql`
+                SELECT * FROM chatrooms WHERE id = ${roomId}
+            `;
+            if (result && result.length > 0) {
+                roomDetails = result[0];
+            }
+        } catch (error) {
+            logger.error(`❌ Error fetching room details: ${error.message}`);
+            socket.emit('error', { message: 'Error fetching room details.' });
+            return;
+        }
+
+        // If token gated, check token ownership
+        if (roomDetails && roomDetails.tokenGated) {
+            const { tokenAddress, tokenStandard } = roomDetails;
+            const userWallet = users[userId]?.walletAddress;
+            if (!userWallet) {
+                socket.emit('error', { message: 'Wallet address is required for token gated rooms.' });
+                logger.warn('No wallet address provided for token gated room history request.');
+                return;
+            }
+            let ownsToken = false;
+            try {
+                ownsToken = await checkTokenOwnership(tokenStandard, tokenAddress, userWallet, provider);
+            } catch (err) {
+                logger.error(`[get_history] Error checking token ownership: ${err.message}`);
+                socket.emit('error', { message: 'Error verifying token ownership.' });
+                return;
+            }
+            if (!ownsToken) {
+                logger.info(`[get_history] User ${userWallet} does NOT own required token (${tokenAddress}) for room ${roomId}.`);
+                socket.emit('error', { message: 'You do not own the required token to view this room\'s history.' });
+                return;
+            }
         }
 
         let history = [];
