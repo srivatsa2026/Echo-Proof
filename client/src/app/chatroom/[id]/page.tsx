@@ -74,8 +74,9 @@ export default function ChatroomPage() {
     return found ? found.title : "Chatroom";
   });
   const wallet = useActiveWallet()
-  const walletAddress = wallet?.getAccount?.()?.address
+  // const walletAddress = wallet?.getAccount?.()?.address
   const userId = useSelector((state: any) => state.user.id)
+  const walletAddress = useSelector((state: any) => state.user.wallet_address)
 
 
   // State management
