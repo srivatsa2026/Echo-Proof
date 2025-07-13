@@ -25,6 +25,7 @@ import Cookies from "js-cookie"
 import axios from "axios"
 import { useDispatch, useSelector } from "react-redux"
 import { updateUserProfile, getUserDetails } from "@/store/reducers/userSlice"
+import { closeChatroom } from "@/store/reducers/chatroomSlice"
 // import { encryptMessage, decryptMessage } from "@/lib/lit-encryption"
 import { encryptMessage, decryptMessage, testEncryption } from "@/lib/simple-encryption"
 import { getSocket } from "@/lib/socket/chatroom-socket"
@@ -108,6 +109,7 @@ export default function ChatroomPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
 
   const dispatch = useDispatch()
   // Function to fetch messages from the API (paginated)
@@ -830,6 +832,43 @@ export default function ChatroomPage() {
     }, 1000)
   }
 
+  // Get chatroom creatorId from Redux state
+  const chatroomCreatorId = useSelector((state: any) => {
+    const found = state.chatroom.chatrooms.find((c: any) => c.id === chatroomId);
+    if (!found) return null;
+    // If creator is an object, use its id; if it's a string, use it directly; fallback to creatorId
+    if (typeof found.creator === "object" && found.creator !== null) {
+      return found.creator.id;
+    }
+    return found.creator || found.creatorId || null;
+  });
+
+  // Listen for room_closed event and redirect all users
+  useEffect(() => {
+    if (!socket) return;
+    const handleRoomClosed = (data: any) => {
+      toast({ title: "Room Closed", description: data.message });
+      router.push("/dashboard/chatrooms");
+    };
+    socket.on("room_closed", handleRoomClosed);
+    return () => {
+      socket.off("room_closed", handleRoomClosed);
+    };
+  }, [socket, router, toast]);
+
+  // Handler for admin to close the room (with confirmation)
+  const confirmCloseRoom = async () => {
+    setCloseDialogOpen(false);
+    if (!chatroomId || !socket) return;
+    try {
+      socket.emit("close_room", { roomId: chatroomId, adminId: userId });
+      await dispatch<any>(closeChatroom({ roomId: chatroomId, toast })).unwrap();
+      // No need to redirect here, handled by socket event
+    } catch (err) {
+      // Error handled by thunk
+    }
+  };
+
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -997,6 +1036,44 @@ export default function ChatroomPage() {
               </Tooltip>
             </TooltipProvider>
 
+            {/* Admin Close Room Button */}
+            {userId === chatroomCreatorId && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => setCloseDialogOpen(true)}
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Close Room (Admin Only)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {/* Close Room Confirmation Dialog */}
+            <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Close Room</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to permanently close this room? All participants will be removed and the room will be deactivated.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={confirmCloseRoom}>
+                    Yes, Close Room
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

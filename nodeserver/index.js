@@ -426,6 +426,44 @@ io.on('connection', (socket) => {
         logger.info(`✅ User ${userId} left room: ${roomId}`);
     });
 
+    // Handle closing a room by admin
+    socket.on('close_room', async (data) => {
+        const { roomId, adminId } = data;
+        // Fetch room details from the database
+        let roomDetails = null;
+        try {
+            const result = await sql`SELECT * FROM chatrooms WHERE id = ${roomId}`;
+            if (result && result.length > 0) {
+                roomDetails = result[0];
+            }
+        } catch (error) {
+            logger.error(`❌ Error fetching room details: ${error.message}`);
+            socket.emit('error', { message: 'Error fetching room details.' });
+            return;
+        }
+        if (!roomDetails || roomDetails.creatorId !== adminId) {
+            socket.emit('error', { message: 'Only the admin can close the room.' });
+            return;
+        }
+        // Notify all users in the room
+        io.to(roomId).emit('room_closed', { message: 'This room has been closed by the admin.' });
+        // Remove all users from the room
+        if (rooms[roomId]) {
+            for (const uid of rooms[roomId]) {
+                const userSocket = io.sockets.sockets.get(uid);
+                if (userSocket) {
+                    userSocket.leave(roomId);
+                }
+                // Remove room from user's list
+                if (users[uid] && users[uid].rooms.includes(roomId)) {
+                    users[uid].rooms = users[uid].rooms.filter(id => id !== roomId);
+                }
+            }
+            delete rooms[roomId];
+        }
+        logger.info(`Room ${roomId} closed by admin ${adminId}`);
+    });
+
     // Handle incoming messages
     socket.on('message', async (data) => {
         logger.info(`📩 Message received from ${userId}:`, data);

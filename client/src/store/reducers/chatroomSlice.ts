@@ -137,6 +137,35 @@ export const checkJoinChatroom = createAsyncThunk(
     }
 );
 
+// Async thunk for closing (deactivating) a chatroom
+export const closeChatroom = createAsyncThunk(
+    "chatroom/closeChatroom",
+    async (
+        { roomId, toast }: { roomId: string; toast?: any },
+        { rejectWithValue }
+    ) => {
+        try {
+            const response = await axios.patch(`/api/chatrooms/${roomId}`, {}, { withCredentials: true });
+            if (toast) {
+                toast({
+                    title: "Chatroom Closed",
+                    description: response.data.message || "Chatroom closed successfully.",
+                });
+            }
+            return { roomId };
+        } catch (error: any) {
+            if (toast) {
+                toast({
+                    title: "Error",
+                    description: error.response?.data?.message || "Failed to close chatroom.",
+                    variant: "destructive"
+                });
+            }
+            return rejectWithValue(error.response?.data || { message: "Unknown error" });
+        }
+    }
+);
+
 const chatroomSlice = createSlice({
     name: "chatroom",
     initialState,
