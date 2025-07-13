@@ -75,10 +75,9 @@ export default function ChatroomPage() {
     return found ? found.title : "Chatroom";
   });
   const wallet = useActiveWallet()
-  // const walletAddress = wallet?.getAccount?.()?.address
   const userId = useSelector((state: any) => state.user.id)
   const walletAddress = useSelector((state: any) => state.user.wallet_address)
-
+  console.log("the wallet address of the user in the chatroom id is ", walletAddress)
 
   // State management
   const [message, setMessage] = useState("")
