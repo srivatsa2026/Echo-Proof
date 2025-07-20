@@ -20,7 +20,11 @@ import ConnectionButton from "../../(auth)/connection-button"
 import Cookies from "js-cookie"
 import { getSocket } from "@/lib/socket/chatroom-socket"
 import { useToast } from "@/hooks/use-toast"
-import { useActiveWallet } from "thirdweb/react"
+import { useActiveAccount } from "thirdweb/react"
+import { getContract } from "thirdweb";
+import { sepolia } from "thirdweb/chains";
+import { useReadContract } from "thirdweb/react";
+import { client } from "../../client";
 
 interface ChatroomDetails {
     id: string
@@ -44,7 +48,7 @@ export default function JoinChatroomPage() {
     const params = useParams()
     const chatroomId = params.id as string
 
-    const wallet = useActiveWallet();
+    const wallet = useActiveAccount();
 
     // Redux state
     const chatroom = useSelector((state: any) => state.chatroom)
@@ -80,7 +84,7 @@ export default function JoinChatroomPage() {
         let socket: any = null;
         if (username) {
             // Use the top-level wallet variable
-            const walletAddress = wallet?.getAccount?.()?.address || user.wallet_address;
+            const walletAddress = wallet?.address || user.wallet_address;
             socket = getSocket(username, walletAddress);
             const handleConnect = () => {
                 // Emit join event after connection
@@ -144,16 +148,46 @@ export default function JoinChatroomPage() {
 
     const { toast } = useToast();
 
+    // Use thirdweb to get the active account
+    const account = useActiveAccount();
+    const walletAddress = account?.address;
+
+    // Prepare contract instance for ERC-20
+    const tokenContract = tokenAddress && tokenGated
+        ? getContract({
+            client,
+            address: tokenAddress,
+            chain: sepolia,
+        })
+        : undefined;
+
+    // Always call useReadContract, use dummy contract if tokenContract is not defined
+    const dummyContract = getContract({
+        client,
+        address: "0x0000000000000000000000000000000000000000",
+        chain: sepolia,
+    });
+    const contractToUse = tokenContract || dummyContract;
+    const addressToUse = walletAddress || "0x0000000000000000000000000000000000000000";
+    const { data: tokenBalance, isLoading: checkingToken } = useReadContract({
+        contract: contractToUse,
+        method: "function balanceOf(address) view returns (uint256)",
+        params: [addressToUse],
+    });
+
+    // Determine if the user has the required token
+    const hasRequiredToken = !tokenGated || (tokenBalance && BigInt(tokenBalance?.toString?.() || "0") > 0n);
+
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!username.trim()) return
+        if (!username.trim() || (tokenGated && !hasRequiredToken)) return
         setIsJoining(true)
         try {
             // Update user profile with the chosen username
             await dispatch<any>(updateUserProfile({ name: username, toast })).unwrap()
             // Initiate socket connection with username
             // Use the top-level wallet variable
-            const walletAddress = wallet?.getAccount?.()?.address || user.wallet_address;
+            const walletAddress = wallet?.address || user.wallet_address;
             getSocket(username, walletAddress)
             // Send wallet address if tokenGated
             const joinPayload: any = { roomId: chatroomId };
@@ -341,6 +375,11 @@ export default function JoinChatroomPage() {
                                         <div className="text-green-400 text-center font-semibold">You are already a member of this chatroom.</div>
                                     ) : userStatus && !userStatus.canJoin ? (
                                         <div className="text-red-400 text-center font-semibold">You cannot join this chatroom.</div>
+                                    ) : tokenGated && !checkingToken && !hasRequiredToken ? (
+                                        <div className="text-red-400 text-center font-semibold">
+                                            You do not possess the required token to join this community.<br />
+                                            Please acquire the token to proceed.
+                                        </div>
                                     ) : (
                                         <form onSubmit={handleJoin} className="space-y-6">
                                             <div className="space-y-3">
@@ -355,7 +394,7 @@ export default function JoinChatroomPage() {
                                                     onChange={(e) => setUsername(e.target.value)}
                                                     className="bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 h-12 rounded-xl text-base"
                                                     required
-                                                    disabled={isJoining || loading || !isAuthenticated}
+                                                    disabled={isJoining || loading || !isAuthenticated || (tokenGated && !hasRequiredToken)}
                                                 />
                                                 <p className="text-xs text-gray-500">
                                                     Choose a name that represents you professionally in this community
@@ -363,7 +402,7 @@ export default function JoinChatroomPage() {
                                             </div>
                                             <Button
                                                 type="submit"
-                                                disabled={!username.trim() || isJoining || loading || !isAuthenticated}
+                                                disabled={!username.trim() || isJoining || loading || !isAuthenticated || (tokenGated && !hasRequiredToken)}
                                                 className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold h-12 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
                                             >
                                                 {isJoining ? (

@@ -106,6 +106,7 @@ function getRoomParticipants(roomId) {
             if (users[uid]) {
                 participants.push({
                     id: uid,
+                    walletAddress: users[uid].walletAddress,
                     name: users[uid].name,
                     status: users[uid].status,
                     isCurrentUser: false
@@ -588,6 +589,13 @@ io.on('connection', (socket) => {
 
         if (!roomId) {
             socket.emit('error', { message: 'Room ID is required.' });
+            return;
+        }
+
+        // Check if user is in the room before fetching history
+        if (!rooms[roomId] || !rooms[roomId].includes(userId)) {
+            logger.warn(`User ${userId} requested history for room ${roomId} but is not a participant.`);
+            socket.emit('error', { message: 'You are not a participant in this room.' });
             return;
         }
 

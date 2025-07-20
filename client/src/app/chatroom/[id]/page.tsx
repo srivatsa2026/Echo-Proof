@@ -109,6 +109,7 @@ export default function ChatroomPage() {
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [participantsLoaded, setParticipantsLoaded] = useState(false);
 
   const dispatch = useDispatch()
   // Function to fetch messages from the API (paginated)
@@ -190,12 +191,17 @@ export default function ChatroomPage() {
     }
   }, [chatroomId, toast, wallet, walletAddress]);
 
+  // Utility: Check if current user is a participant (by socket id)
+  const isCurrentUserParticipant = useCallback(() => {
+    if (!socket || !socket.id) return false;
+    return participants.some((p) => p.id === socket.id);
+  }, [participants, socket]);
+
   // Initial load
   useEffect(() => {
     setMessages([]);
     setOffset(0);
     setHasMore(true);
-    fetchMessages(0, false);
     dispatch<any>(getUserDetails());
 
     // Set a timeout to stop waiting for username after 3 seconds
@@ -204,9 +210,20 @@ export default function ChatroomPage() {
     }, 3000);
 
     return () => clearTimeout(usernameTimeout);
-  }, [chatroomId, dispatch, fetchMessages]);
+  }, [chatroomId, dispatch]);
+
+  // Fetch messages only if user is a participant
+  useEffect(() => {
+    if (isCurrentUserParticipant()) {
+      fetchMessages(0, false);
+    } else {
+      setMessages([]); // Clear messages if not a participant
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participants, chatroomId, isCurrentUserParticipant]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!isCurrentUserParticipant()) return;
     if (e.currentTarget.scrollTop === 0 && hasMore && !loadingMore) {
       fetchMessages(offset, true);
     }
@@ -368,6 +385,7 @@ export default function ChatroomPage() {
         }
 
         setParticipants(updatedParticipants)
+        setParticipantsLoaded(true)
 
         // Load message history if available
         if (data.history && Array.isArray(data.history)) {
@@ -640,6 +658,7 @@ export default function ChatroomPage() {
           }))
 
           setParticipants(updatedParticipants)
+          setParticipantsLoaded(true)
         }
       })
 
@@ -921,12 +940,24 @@ export default function ChatroomPage() {
   }
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || !participantsLoaded || connectionStatus !== "connected") {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
         <h2 className="text-lg font-medium">Connecting to chatroom...</h2>
         <p className="text-sm text-muted-foreground">Please wait while we establish a connection.</p>
+      </div>
+    )
+  }
+
+  // Not a participant state
+  if (!isCurrentUserParticipant()) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background">
+        <AlertTriangle className="h-8 w-8 text-destructive mb-4" />
+        <h2 className="text-lg font-medium">Not a Participant</h2>
+        <p className="text-sm text-muted-foreground mb-4">You are not a participant in this chatroom. Please ask the admin to add you.</p>
+        <Button variant="outline" onClick={() => router.push(`/join-chatroom/${chatroomId}`)}>Back to Join Chatroom</Button>
       </div>
     )
   }
