@@ -100,7 +100,6 @@ export default function ChatroomPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
-  const token: any = Cookies.get("jwt")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [offset, setOffset] = useState(0);
@@ -983,7 +982,7 @@ export default function ChatroomPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Encryption Test - Remove this in production */}
+
 
 
       {/* Leave Confirmation Dialog */}
