@@ -1169,6 +1169,7 @@ export default function ChatroomPage() {
                               {msg.sender?.name
                                 ? msg.sender.name.charAt(0).toUpperCase()
                                 : "U"}
+                                
                             </AvatarFallback>
                           </Avatar>
                         )}
