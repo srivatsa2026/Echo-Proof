@@ -28,30 +28,9 @@ import { CreateChatroomCard } from "@/components/chatroom/createChatRoom"
 import { useActiveWallet } from "thirdweb/react"
 import { useDispatch } from "react-redux"
 import UserActivity from "@/components/dashboard/userActivity"
+import CreateMeeting from "@/components/meeting/createMeeting"
 
-const upcomingMeetings = [
-  {
-    id: "meet-123",
-    title: "Weekly Team Sync",
-    date: new Date(Date.now() + 86400000), // Tomorrow
-    type: "meeting",
-    participants: 5,
-  },
-  {
-    id: "chat-456",
-    title: "Project Alpha Discussion",
-    date: new Date(Date.now() + 172800000), // Day after tomorrow
-    type: "chatroom",
-    participants: 3,
-  },
-  {
-    id: "meet-789",
-    title: "Client Presentation",
-    date: new Date(Date.now() + 345600000), // 4 days from now
-    type: "meeting",
-    participants: 8,
-  },
-]
+
 
 export default function DashboardPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -120,7 +99,9 @@ export default function DashboardPage() {
         transition={{ duration: 0.4 }}
       >
         <CreateChatroomCard />
-        <Card>
+        <CreateMeeting />
+
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center">
               <Video className="h-5 w-5 mr-2 text-primary" />
@@ -162,7 +143,7 @@ export default function DashboardPage() {
               )}
             </Button>
           </CardContent>
-        </Card>
+        </Card> */}
 
 
         {/* the below commented card is for the meeting scheduling */}

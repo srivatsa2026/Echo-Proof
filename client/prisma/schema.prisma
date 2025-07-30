@@ -81,6 +81,7 @@ model VideoMeeting {
   id            String               @id @default(uuid())
   title         String               @db.VarChar(255)
   hostId        String
+  sessionId     String
   startTime     DateTime
   endTime       DateTime?
   tokenGated    Boolean              @default(false)

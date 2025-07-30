@@ -5,7 +5,7 @@ import { ThirdwebProvider } from "thirdweb/react";
 import ReduxProvider from "@/store/reduxProvider";
 import { Toaster } from "@/components/ui/toaster";
 import AuthGuard from "@/components/auth-provider";
-
+import HuddleClientProvider from "@/components/Huddle-client-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -24,12 +24,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <ReduxProvider>
           <ThirdwebProvider>
-            {/* <AuthGuard>
+            <HuddleClientProvider>
+              {/* <AuthGuard>
+                {children}
+                <Toaster />
+              </AuthGuard> */}
               {children}
               <Toaster />
-            </AuthGuard> */}
-            {children}
-            <Toaster />
+            </HuddleClientProvider>
           </ThirdwebProvider>
         </ReduxProvider>
       </body>

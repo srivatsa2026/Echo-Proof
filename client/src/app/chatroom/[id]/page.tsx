@@ -1017,7 +1017,7 @@ export default function ChatroomPage() {
             <div>
               <h1 className="text-lg font-semibold">{chatroomTitle}</h1>
               <div className="flex items-center text-sm text-muted-foreground">
-                <span className="font-mono text-muted">copy room link</span>
+                <span className="font-mono">copy room link</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={copyRoomId}>
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -1169,7 +1169,7 @@ export default function ChatroomPage() {
                               {msg.sender?.name
                                 ? msg.sender.name.charAt(0).toUpperCase()
                                 : "U"}
-                                
+
                             </AvatarFallback>
                           </Avatar>
                         )}

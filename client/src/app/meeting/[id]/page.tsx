@@ -1,772 +1,460 @@
-"use client"
+'use client';
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
-import { useParams } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Input } from "@/components/ui/input"
+import React, { useRef, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useRoom } from '@huddle01/react/hooks';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  User,
-  X,
-  Copy,
-  Mic,
-  MicOff,
-  VideoIcon,
-  VideoOff,
-  ScreenShare,
-  MessageSquare,
-  Phone,
-  Sparkles,
-  Send,
-  FileText,
-} from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import Image from "next/image"
+    useLocalVideo,
+    useLocalAudio,
+    useLocalScreenShare,
+    usePeerIds,
+    useRemoteVideo,
+    useRemoteAudio,
+    useRemoteScreenShare
+} from "@huddle01/react/hooks";
+import { Video, Audio } from '@huddle01/react/components';
+import { Role } from "@huddle01/server-sdk/auth";
+import { motion } from "framer-motion";
+import { 
+    Video as VideoIcon, 
+    VideoOff, 
+    Mic, 
+    MicOff, 
+    Monitor, 
+    MonitorOff,
+    Phone,
+    Settings,
+    Users,
 
-// Mock data for participants
-const mockParticipants = [
-  {
-    id: "user-1",
-    name: "Alice Johnson",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "speaking",
-    isCurrentUser: true,
-    isMuted: false,
-    isVideoOn: true,
-  },
-  {
-    id: "user-2",
-    name: "Bob Smith",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    isCurrentUser: false,
-    isMuted: false,
-    isVideoOn: true,
-  },
-  {
-    id: "user-3",
-    name: "Charlie Davis",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    isCurrentUser: false,
-    isMuted: true,
-    isVideoOn: true,
-  },
-  {
-    id: "user-4",
-    name: "Diana Miller",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    isCurrentUser: false,
-    isMuted: false,
-    isVideoOn: false,
-  },
-  {
-    id: "user-5",
-    name: "Ethan Wilson",
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    isCurrentUser: false,
-    isMuted: true,
-    isVideoOn: false,
-  },
-]
+    Square,
+    Copy,
+    Share,
+    Maximize,
+    Minimize
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Mock data for chat messages
-const mockMessages = [
-  {
-    id: "msg-1",
-    sender: {
-      id: "user-2",
-      name: "Bob Smith",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "Hi everyone, can you all hear me?",
-    timestamp: new Date(Date.now() - 3600000 * 2),
-  },
-  {
-    id: "msg-2",
-    sender: {
-      id: "user-3",
-      name: "Charlie Davis",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "Yes, loud and clear!",
-    timestamp: new Date(Date.now() - 3600000 * 1.5),
-  },
-  {
-    id: "msg-3",
-    sender: {
-      id: "user-4",
-      name: "Diana Miller",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    content: "I can hear you too. Let's start discussing the project timeline.",
-    timestamp: new Date(Date.now() - 3600000 * 1),
-  },
-]
-
-// Mock data for notes
-const mockNotes = `# Meeting Notes
-
-## Agenda
-- Project timeline review
-- Resource allocation
-- Next steps
-
-## Discussion Points
-- Need to finalize the design by next week
-- Backend development will start in parallel
-- Testing phase scheduled for the end of the month
-
-## Action Items
-- [ ] Alice: Share updated wireframes
-- [ ] Bob: Prepare resource allocation plan
-- [ ] Charlie: Set up development environment
-- [ ] Diana: Draft testing strategy
-`
-
-// Mock AI summary
-const mockSummary = {
-  keyPoints: [
-    "Team discussed project timeline and resource allocation",
-    "Design needs to be finalized by next week",
-    "Backend development will start in parallel",
-    "Testing phase is scheduled for the end of the month",
-  ],
-  actionItems: [
-    "Alice will share updated wireframes",
-    "Bob will prepare resource allocation plan",
-    "Charlie will set up the development environment",
-    "Diana will draft the testing strategy",
-  ],
-  nextSteps: "Follow-up meeting scheduled for next week to review progress.",
+interface RemotePeerProps {
+    peerId: string;
+    onAudioTrack?: (track: MediaStreamTrack) => void;
+    username?: string;
 }
 
-export default function MeetingPage() {
-  const params = useParams()
-  const meetingId = params.id as string
-  const [participants, setParticipants] = useState(mockParticipants)
-  const [messages, setMessages] = useState(mockMessages)
-  const [message, setMessage] = useState("")
-  const [notes, setNotes] = useState(mockNotes)
-  const [isEditingNotes, setIsEditingNotes] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isVideoOn, setIsVideoOn] = useState(true)
-  const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
-  const [showSummary, setShowSummary] = useState(false)
-  const [isLeavingMeeting, setIsLeavingMeeting] = useState(false)
-  const [activeTab, setActiveTab] = useState("chat")
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { toast } = useToast()
+const RemotePeer: React.FC<RemotePeerProps> = ({ peerId, onAudioTrack, username }) => {
+    const { stream: videoStream } = useRemoteVideo({ peerId });
+    const { stream: audioStream } = useRemoteAudio({ peerId });
+    const { videoStream: screenVideoStream, audioStream: screenAudioStream } = useRemoteScreenShare({ peerId });
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    useEffect(() => {
+        if (audioStream) {
+            const track = audioStream.getAudioTracks()[0];
+            if (track && onAudioTrack) onAudioTrack(track);
+        }
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+        if (screenAudioStream) {
+            const track = screenAudioStream.getAudioTracks()[0];
+            if (track && onAudioTrack) onAudioTrack(track);
+        }
+    }, [audioStream, screenAudioStream, onAudioTrack]);
 
-  const sendMessage = () => {
-    if (!message.trim()) return
-
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      sender: participants.find((p) => p.isCurrentUser)!,
-      content: message,
-      timestamp: new Date(),
-    }
-
-    setMessages([...messages, newMessage])
-    setMessage("")
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
-
-  const copyMeetingId = () => {
-    navigator.clipboard.writeText(meetingId)
-    toast({
-      title: "Copied!",
-      description: "Meeting ID copied to clipboard.",
-    })
-  }
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted)
-
-    // Update current user in participants
-    const updatedParticipants = participants.map((p) => (p.isCurrentUser ? { ...p, isMuted: !isMuted } : p))
-    setParticipants(updatedParticipants)
-  }
-
-  const toggleVideo = () => {
-    setIsVideoOn(!isVideoOn)
-
-    // Update current user in participants
-    const updatedParticipants = participants.map((p) => (p.isCurrentUser ? { ...p, isVideoOn: !isVideoOn } : p))
-    setParticipants(updatedParticipants)
-  }
-
-  const toggleScreenShare = () => {
-    setIsScreenSharing(!isScreenSharing)
-
-    toast({
-      title: isScreenSharing ? "Screen sharing stopped" : "Screen sharing started",
-      description: isScreenSharing ? "You've stopped sharing your screen." : "You're now sharing your screen.",
-    })
-  }
-
-  const toggleRecording = () => {
-    setIsRecording(!isRecording)
-
-    toast({
-      title: isRecording ? "Recording stopped" : "Recording started",
-      description: isRecording ? "Meeting recording has been stopped." : "Meeting is now being recorded.",
-    })
-  }
-
-  const generateSummary = () => {
-    setIsGeneratingSummary(true)
-
-    // Simulate AI summary generation
-    setTimeout(() => {
-      setIsGeneratingSummary(false)
-      setShowSummary(true)
-      setActiveTab("summary")
-
-      toast({
-        title: "Summary Generated",
-        description: "AI has generated a summary of the meeting.",
-      })
-    }, 2000)
-  }
-
-  const leaveMeeting = () => {
-    setIsLeavingMeeting(true)
-
-    // Simulate leaving the meeting
-    setTimeout(() => {
-      window.location.href = "/dashboard"
-    }, 1000)
-  }
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
-  return (
-    <div className="flex flex-col h-screen bg-background">
-      <header className="border-b border-border/40 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" asChild className="md:hidden">
-              <a href="/dashboard">
-                <X className="h-5 w-5" />
-              </a>
-            </Button>
-
-            <div>
-              <h1 className="text-lg font-semibold">Meeting</h1>
-              <div className="flex items-center text-sm text-muted-foreground">
-                <span className="font-mono">{meetingId}</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={copyMeetingId}>
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isRecording && (
-              <Badge variant="destructive" className="animate-pulse">
-                Recording
-              </Badge>
+    return (
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-700"
+        >
+            {/* Screen share has priority over camera */}
+            {screenVideoStream ? (
+                <div className="aspect-video">
+                    <Video stream={screenVideoStream} className="w-full h-full object-cover" />
+                    <div className="absolute top-2 left-2">
+                        <Badge className="bg-blue-500 text-white">Screen Share</Badge>
+                    </div>
+                </div>
+            ) : videoStream ? (
+                <div className="aspect-video">
+                    <Video stream={videoStream} className="w-full h-full object-cover" />
+                </div>
+            ) : (
+                <div className="aspect-video flex items-center justify-center bg-gray-800">
+                    <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-semibold text-xl">
+                            {username ? username.charAt(0).toUpperCase() : '?'}
+                        </span>
+                    </div>
+                </div>
             )}
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleRecording}
-                    className={isRecording ? "text-destructive" : ""}
-                  >
-                    <div className="relative">
-                      <VideoIcon className="h-5 w-5" />
-                      {isRecording && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />}
-                    </div>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isRecording ? "Stop Recording" : "Start Recording"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Participant name */}
+            <div className="absolute bottom-2 left-2">
+                <Badge className="bg-black/70 text-white border-0">
+                    {username || `Participant ${peerId.slice(0, 6)}`}
+                </Badge>
+            </div>
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={generateSummary} disabled={isGeneratingSummary}>
-                    <Sparkles className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Generate AI Summary</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Audio indicators */}
+            {audioStream && <Audio stream={audioStream} />}
+            {screenAudioStream && <Audio stream={screenAudioStream} />}
+        </motion.div>
+    );
+};
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-destructive">
-                  <Phone className="h-5 w-5" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Leave Meeting</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to leave this meeting? You can rejoin later with the meeting ID.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => {}}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" onClick={leaveMeeting} disabled={isLeavingMeeting}>
-                    {isLeavingMeeting ? "Leaving..." : "Leave Meeting"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </header>
+interface ShowPeersProps {
+    onRemoteAudioTrack?: (track: MediaStreamTrack) => void;
+}
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <main className="flex-1 p-4 overflow-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {participants.map((participant, index) => (
-              <motion.div
-                key={participant.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                whileHover={{ y: -5, boxShadow: "0 10px 25px -5px rgba(249, 115, 22, 0.2)" }}
-                className="transform transition-all duration-200"
-              >
-                <div
-                  className={`relative rounded-lg overflow-hidden border ${
-                    participant.status === "speaking" ? "border-primary" : "border-border"
-                  } aspect-video bg-secondary/50`}
-                >
-                  {participant.isVideoOn ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Image
-                        src={participant.avatar || "/placeholder.svg"}
-                        alt={participant.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Avatar className="h-20 w-20">
-                        <AvatarImage src={participant.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>
-                          <User className="h-10 w-10" />
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                  )}
+const ShowPeers: React.FC<ShowPeersProps> = ({ onRemoteAudioTrack }) => {
+    const { peerIds } = usePeerIds({ roles: [Role.HOST, Role.CO_HOST, Role.GUEST] });
 
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/50 backdrop-blur-sm flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">
-                        {participant.name}
-                        {participant.isCurrentUser && " (You)"}
-                      </span>
-                      {participant.status === "speaking" && (
-                        <span className="flex gap-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-75" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {participant.isMuted && <MicOff className="h-4 w-4 text-destructive" />}
-                      {!participant.isVideoOn && <VideoOff className="h-4 w-4 text-destructive" />}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {peerIds.map(peerId => (
+                <RemotePeer 
+                    key={peerId} 
+                    peerId={peerId} 
+                    onAudioTrack={onRemoteAudioTrack}
+                    username={`User ${peerId.slice(0, 6)}`}
+                />
             ))}
-          </div>
+        </div>
+    );
+};
 
-          {isScreenSharing && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="mt-4"
-            >
-              <div className="relative rounded-lg overflow-hidden border border-primary aspect-video bg-secondary/50">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-muted-foreground">
-                    <ScreenShare className="h-12 w-12 mx-auto mb-4" />
-                    <p>You are sharing your screen</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
+export default function MeetingRoom() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    
+    // Get params from URL
+    const roomId = searchParams.get('roomId');
+    const token = searchParams.get('token');
+    const username = searchParams.get('username') || 'Anonymous';
 
-          {isGeneratingSummary && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="mt-4"
-            >
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                      <h3 className="font-semibold">Generating AI Summary...</h3>
-                    </div>
-                  </div>
+    // Room state
+    const { joinRoom, leaveRoom, room, state } = useRoom({
+        onJoin: () => {
+            console.log('✅ Joined the room');
+            setConnectionStatus('connected');
+        },
+        onLeave: () => {
+            console.log('👋 Left the room');
+            setConnectionStatus('disconnected');
+        },
+        onFailed: (error) => {
+            console.error('❌ Failed to join room:', error);
+            setConnectionStatus('failed');
+        }
+    });
 
-                  <div className="flex items-center justify-center py-8">
-                    <div className="flex gap-2">
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-150" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-300" />
-                      <div className="h-2 w-2 rounded-full bg-primary animate-bounce delay-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </main>
+    // Media controls
+    const { stream: videoStream, enableVideo, disableVideo, isVideoOn } = useLocalVideo();
+    const { stream: audioStream, enableAudio, disableAudio, isAudioOn } = useLocalAudio();
+    const { startScreenShare, stopScreenShare, shareStream } = useLocalScreenShare();
 
-        <div className="border-t md:border-t-0 md:border-l border-border/40 w-full md:w-80 lg:w-96 flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-            <TabsList className="mx-4 my-2">
-              <TabsTrigger value="chat" className="flex-1">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Chat
-              </TabsTrigger>
-              <TabsTrigger value="summary" className="flex-1">
-                <FileText className="h-4 w-4 mr-2" />
-                Summary
-              </TabsTrigger>
-            </TabsList>
+    // Recording
+    const mixedStreamRef = useRef<MediaStream | null>(null);
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const [chunks, setChunks] = useState<Blob[]>([]);
+    const [isRecording, setIsRecording] = useState(false);
 
-            <AnimatePresence mode="wait">
-              {activeTab === "chat" ? (
-                <motion.div
-                  key="chat"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-1 flex flex-col"
-                >
-                  <TabsContent value="chat" className="flex-1 flex flex-col p-0 m-0">
-                    <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-4">
-                        {messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "justify-end" : "justify-start"}`}
-                          >
-                            <div
-                              className={`flex gap-3 max-w-[80%] ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "flex-row-reverse" : ""}`}
-                            >
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={msg.sender.avatar || "/placeholder.svg"} />
-                                <AvatarFallback>
-                                  <User className="h-4 w-4" />
-                                </AvatarFallback>
-                              </Avatar>
+    // UI State
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed'>('connecting');
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showControls, setShowControls] = useState(true);
 
-                              <div>
-                                <div
-                                  className={`flex items-center gap-2 mb-1 ${msg.sender.id === participants.find((p) => p.isCurrentUser)?.id ? "justify-end" : ""}`}
-                                >
-                                  <span className="text-xs text-muted-foreground">{formatTime(msg.timestamp)}</span>
-                                  <span className="text-sm font-medium">{msg.sender.name}</span>
-                                </div>
+    // Auto-join room on component mount
+    useEffect(() => {
+        if (roomId && token) {
+            console.log('Auto-joining room:', { roomId, token: token.substring(0, 20) + '...' });
+            joinRoom({ roomId, token });
+        } else {
+            console.error('Missing roomId or token');
+            setConnectionStatus('failed');
+        }
+    }, [roomId, token, joinRoom]);
 
-                                <div
-                                  className={`rounded-lg p-3 ${
-                                    msg.sender.id === participants.find((p) => p.isCurrentUser)?.id
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-secondary"
-                                  }`}
-                                >
-                                  <p className="text-sm">{msg.content}</p>
-                                </div>
-                              </div>
+    // Mix local audio for recording
+    useEffect(() => {
+        if (audioStream) {
+            const micTrack = audioStream.getAudioTracks()[0];
+            if (micTrack) {
+                if (!mixedStreamRef.current) mixedStreamRef.current = new MediaStream();
+                mixedStreamRef.current.addTrack(micTrack);
+            }
+        }
+    }, [audioStream]);
+
+    // Handle remote audio for recording
+    const handleRemoteAudioTrack = (track: MediaStreamTrack) => {
+        if (!mixedStreamRef.current) {
+            mixedStreamRef.current = new MediaStream();
+        }
+
+        const existingTracks = mixedStreamRef.current.getAudioTracks();
+        const alreadyAdded = existingTracks.find(t => t.id === track.id);
+        if (!alreadyAdded) {
+            mixedStreamRef.current.addTrack(track);
+        }
+    };
+
+    // Recording functions
+    const startRecording = () => {
+        if (!mixedStreamRef.current) {
+            console.warn("❌ No audio to record.");
+            return;
+        }
+
+        const recorder = new MediaRecorder(mixedStreamRef.current);
+        recorderRef.current = recorder;
+        const tempChunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) tempChunks.push(e.data);
+        };
+
+        recorder.onstop = () => {
+            setChunks(tempChunks);
+            const audioBlob = new Blob(tempChunks, { type: 'audio/webm' });
+
+            // Download blob
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meeting-${roomId}-${new Date().toISOString()}.webm`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        recorder.start();
+        setIsRecording(true);
+        console.log("🎥 Recording started");
+    };
+
+    const stopRecording = () => {
+        if (recorderRef.current) {
+            recorderRef.current.stop();
+            setIsRecording(false);
+            console.log("📼 Recording stopped");
+        }
+    };
+
+    // Leave meeting
+    const handleLeaveMeeting = () => {
+        if (isRecording) {
+            stopRecording();
+        }
+        leaveRoom();
+        router.push('/');
+    };
+
+    // Copy meeting link
+    const copyMeetingLink = () => {
+        const meetingLink = `${window.location.origin}/join/${roomId}`;
+        navigator.clipboard.writeText(meetingLink);
+        // You could add a toast notification here
+    };
+
+    // Toggle fullscreen
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen();
+            setIsFullscreen(false);
+        }
+    };
+
+    if (!roomId || !token) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <Card className="bg-red-900/20 border-red-800">
+                    <CardContent className="p-6 text-center text-red-400">
+                        Missing room ID or access token. Please join through the proper meeting link.
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    return (
+        <TooltipProvider>
+            <div className="min-h-screen bg-gray-900 flex flex-col">
+                {/* Header */}
+                <div className="bg-gray-800 border-b border-gray-700 p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${
+                                    connectionStatus === 'connected' ? 'bg-green-500' : 
+                                    connectionStatus === 'connecting' ? 'bg-yellow-500' : 
+                                    'bg-red-500'
+                                }`} />
+                                <span className="text-white font-medium">
+                                    Meeting Room
+                                </span>
                             </div>
-                          </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    </ScrollArea>
-
-                    <div className="border-t p-4">
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Input
-                            placeholder="Type a message..."
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                          />
+                            <Badge variant="outline" className="text-gray-300">
+                                {username}
+                            </Badge>
                         </div>
 
-                        <Button className="shrink-0" size="icon" onClick={sendMessage} disabled={!message.trim()}>
-                          <Send className="h-5 w-5" />
-                        </Button>
-                      </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={copyMeetingLink}
+                                className="text-gray-300 border-gray-600"
+                            >
+                                <Share className="w-4 h-4 mr-2" />
+                                Share
+                            </Button>
+                            
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={toggleFullscreen}
+                                className="text-gray-300 border-gray-600"
+                            >
+                                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                            </Button>
+                        </div>
                     </div>
-                  </TabsContent>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="summary"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-1 flex flex-col"
-                >
-                  <TabsContent value="summary" className="flex-1 p-4 m-0">
-                    {showSummary ? (
-                      <Card className="h-full">
-                        <CardContent className="p-4 h-full overflow-auto">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                            <h3 className="font-semibold">AI Meeting Summary</h3>
-                          </div>
+                </div>
 
-                          <div className="space-y-4 text-sm">
-                            <div>
-                              <p className="font-semibold mb-2">Key Points:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {mockSummary.keyPoints.map((point, index) => (
-                                  <motion.li
-                                    key={index}
-                                    initial={{ opacity: 0, x: -5 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.1 }}
-                                  >
-                                    {point}
-                                  </motion.li>
-                                ))}
-                              </ul>
+                {/* Main Content */}
+                <div className="flex-1 flex flex-col p-4 gap-4">
+                    {/* Local Video */}
+                    <div className="relative">
+                        {videoStream ? (
+                            <div className="aspect-video bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+                                <Video stream={videoStream} className="w-full h-full object-cover" />
+                                <div className="absolute bottom-4 left-4">
+                                    <Badge className="bg-orange-500 text-white">You</Badge>
+                                </div>
                             </div>
-
-                            <div>
-                              <p className="font-semibold mb-2">Action Items:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {mockSummary.actionItems.map((item, index) => (
-                                  <motion.li
-                                    key={index}
-                                    initial={{ opacity: 0, x: -5 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.4 + index * 0.1 }}
-                                  >
-                                    {item}
-                                  </motion.li>
-                                ))}
-                              </ul>
+                        ) : (
+                            <div className="aspect-video bg-gray-800 rounded-xl flex items-center justify-center border border-gray-700">
+                                <div className="text-center">
+                                    <div className="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="text-white font-semibold text-2xl">
+                                            {username.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-400">Camera is off</p>
+                                </div>
                             </div>
+                        )}
+                    </div>
 
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
-                              <p className="font-semibold mb-2">Next Steps:</p>
-                              <p>{mockSummary.nextSteps}</p>
-                            </motion.div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                        <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No Summary Available</h3>
-                        <p className="text-muted-foreground max-w-xs mb-6">
-                          Generate an AI summary of your meeting to see key points and action items.
-                        </p>
-                        <Button onClick={generateSummary} disabled={isGeneratingSummary}>
-                          {isGeneratingSummary ? (
-                            <span className="flex items-center">
-                              <svg
-                                className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                ></circle>
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
-                              </svg>
-                              Generating...
-                            </span>
-                          ) : (
-                            <>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Generate Summary
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </TabsContent>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </Tabs>
-        </div>
-      </div>
+                    {/* Remote Participants */}
+                    <div className="flex-1">
+                        <h3 className="text-white text-lg font-medium mb-4 flex items-center gap-2">
+                            <Users className="w-5 h-5" />
+                            Participants
+                        </h3>
+                        <ShowPeers onRemoteAudioTrack={handleRemoteAudioTrack} />
+                    </div>
+                </div>
 
-      <div className="border-t border-border/40 p-4">
-        <div className="flex justify-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isMuted ? "destructive" : "secondary"}
-                  size="icon"
-                  onClick={toggleMute}
-                  className="h-12 w-12 rounded-full"
-                >
-                  {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isMuted ? "Unmute" : "Mute"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                {/* Controls */}
+                <div className="bg-gray-800 border-t border-gray-700 p-4">
+                    <div className="flex items-center justify-center gap-4">
+                        {/* Audio Control */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={isAudioOn ? "default" : "destructive"}
+                                    onClick={() => isAudioOn ? disableAudio() : enableAudio()}
+                                    className="rounded-full w-12 h-12 p-0"
+                                >
+                                    {isAudioOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {isAudioOn ? 'Mute' : 'Unmute'}
+                            </TooltipContent>
+                        </Tooltip>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isVideoOn ? "secondary" : "destructive"}
-                  size="icon"
-                  onClick={toggleVideo}
-                  className="h-12 w-12 rounded-full"
-                >
-                  {isVideoOn ? <VideoIcon className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isVideoOn ? "Turn Off Camera" : "Turn On Camera"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                        {/* Video Control */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={isVideoOn ? "default" : "destructive"}
+                                    onClick={() => isVideoOn ? disableVideo() : enableVideo()}
+                                    className="rounded-full w-12 h-12 p-0"
+                                >
+                                    {isVideoOn ? <VideoIcon className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {isVideoOn ? 'Turn off camera' : 'Turn on camera'}
+                            </TooltipContent>
+                        </Tooltip>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isScreenSharing ? "default" : "destructive"}
-                  size="icon"
-                  onClick={toggleScreenShare}
-                  className="h-12 w-12 rounded-full"
-                >
-                  <ScreenShare className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isScreenSharing ? "Stop Sharing" : "Share Screen"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                        {/* Screen Share */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={shareStream ? "default" : "outline"}
+                                    onClick={() => shareStream ? stopScreenShare() : startScreenShare()}
+                                    className="rounded-full w-12 h-12 p-0"
+                                >
+                                    {shareStream ? <MonitorOff className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {shareStream ? 'Stop sharing' : 'Share screen'}
+                            </TooltipContent>
+                        </Tooltip>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isRecording ? "destructive" : "secondary"}
-                  size="icon"
-                  onClick={toggleRecording}
-                  className="h-12 w-12 rounded-full"
-                >
-                  <div className="relative">
-                    <VideoIcon className="h-5 w-5" />
+                        {/* Recording */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={isRecording ? "destructive" : "outline"}
+                                    onClick={() => isRecording ? stopRecording() : startRecording()}
+                                    className="rounded-full w-12 h-12 p-0"
+                                >
+                                    {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {isRecording ? 'Stop recording' : 'Start recording'}
+                            </TooltipContent>
+                        </Tooltip>
+
+                        {/* Leave Meeting */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="destructive"
+                                    onClick={handleLeaveMeeting}
+                                    className="rounded-full w-12 h-12 p-0 ml-4"
+                                >
+                                    <Phone className="w-5 h-5 rotate-180" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                Leave meeting
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+
+                    {/* Recording Status */}
                     {isRecording && (
-                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                        <div className="flex items-center justify-center mt-4">
+                            <div className="flex items-center gap-2 bg-red-500/20 border border-red-500 rounded-full px-4 py-2">
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                <span className="text-red-400 text-sm font-medium">Recording</span>
+                            </div>
+                        </div>
                     )}
-                  </div>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isRecording ? "Stop Recording" : "Start Recording"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => setIsLeavingMeeting(true)}
-                  className="h-12 w-12 rounded-full"
-                >
-                  <Phone className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Leave Meeting</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-    </div>
-  )
+                </div>
+            </div>
+        </TooltipProvider>
+    );
 }
