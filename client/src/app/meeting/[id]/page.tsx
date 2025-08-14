@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useRoom } from '@huddle01/react/hooks';
 import {
     useLocalVideo,
@@ -126,12 +126,15 @@ const ShowPeers: React.FC<ShowPeersProps> = ({ onRemoteAudioTrack }) => {
 
 export default function MeetingRoom() {
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const params = useParams();
     
-    // Get params from URL
-    const roomId = searchParams.get('roomId');
-    const token = searchParams.get('token');
-    const username = searchParams.get('username') || 'Anonymous';
+    // Get room ID from URL params
+    const roomId = params.id as string;
+    
+    // State for managing token and pre-join
+    const [token, setToken] = useState<string | null>(null);
+    const [displayName, setDisplayName] = useState('');
+    const [isJoining, setIsJoining] = useState(false);
 
     // Room state
     const { joinRoom, leaveRoom, room, state } = useRoom({
@@ -165,16 +168,40 @@ export default function MeetingRoom() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
 
-    // Auto-join room on component mount
+    // Auto-join room on component mount (only if token exists)
     useEffect(() => {
         if (roomId && token) {
             console.log('Auto-joining room:', { roomId, token: token.substring(0, 20) + '...' });
             joinRoom({ roomId, token });
-        } else {
-            console.error('Missing roomId or token');
-            setConnectionStatus('failed');
         }
     }, [roomId, token, joinRoom]);
+
+    // Function to fetch access token and join meeting
+    const handleJoinMeeting = async () => {
+        if (!displayName.trim() || !roomId) return;
+        
+        setIsJoining(true);
+        try {
+            // Fetch access token from your API
+            const response = await fetch(`/api/token?roomId=${roomId}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to get access token');
+            }
+            
+            // The API returns the token as plain text, not JSON
+            const accessToken = await response.text();
+            
+            // Set the token and it will trigger the useEffect above to join the room
+            setToken(accessToken);
+            
+        } catch (error) {
+            console.error('❌ Failed to join meeting:', error);
+            setConnectionStatus('failed');
+        } finally {
+            setIsJoining(false);
+        }
+    };
 
     // Mix local audio for recording
     useEffect(() => {
@@ -252,7 +279,7 @@ export default function MeetingRoom() {
 
     // Copy meeting link
     const copyMeetingLink = () => {
-        const meetingLink = `${window.location.origin}/join/${roomId}`;
+        const meetingLink = `${window.location.origin}/meeting/${roomId}`;
         navigator.clipboard.writeText(meetingLink);
         // You could add a toast notification here
     };
@@ -268,14 +295,104 @@ export default function MeetingRoom() {
         }
     };
 
-    if (!roomId || !token) {
+    if (!roomId) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+            <div className="min-h-screen bg-black flex items-center justify-center">
                 <Card className="bg-red-900/20 border-red-800">
                     <CardContent className="p-6 text-center text-red-400">
-                        Missing room ID or access token. Please join through the proper meeting link.
+                        Invalid meeting room. Please check your meeting link.
                     </CardContent>
                 </Card>
+            </div>
+        );
+    }
+
+    // Show pre-join UI if no token
+    if (!token) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center p-4">
+                <div className="w-full max-w-2xl">
+                    {/* Video Preview */}
+                    <div className="relative mb-8">
+                        <div className="aspect-video bg-black rounded-2xl overflow-hidden relative border border-orange-900">
+                            {isVideoOn && videoStream ? (
+                                <Video stream={videoStream} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-black flex items-center justify-center">
+                                    <VideoOff size={64} className="text-orange-600" />
+                                </div>
+                            )}
+
+                            {/* Media Controls */}
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-3">
+                                {/* Video Toggle */}
+                                <Button
+                                    onClick={() => isVideoOn ? disableVideo() : enableVideo()}
+                                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isVideoOn
+                                            ? 'bg-orange-900 hover:bg-orange-800 text-white'
+                                            : 'bg-red-500 hover:bg-red-600 text-white'
+                                        }`}
+                                >
+                                    {isVideoOn ? <VideoIcon size={20} /> : <VideoOff size={20} />}
+                                </Button>
+
+                                {/* Audio Toggle */}
+                                <Button
+                                    onClick={() => isAudioOn ? disableAudio() : enableAudio()}
+                                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isAudioOn
+                                            ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                            : 'bg-red-500 hover:bg-red-600 text-white'
+                                        }`}
+                                >
+                                    {isAudioOn ? <Mic size={20} /> : <MicOff size={20} />}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Display Name Input */}
+                    <div className="mb-6">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                placeholder="Enter your display name"
+                                className="w-full bg-black border border-orange-800 rounded-xl px-6 py-4 pr-12 text-white placeholder-orange-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all"
+                                disabled={isJoining}
+                            />
+                            <Settings size={20} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-orange-400" />
+                        </div>
+                    </div>
+
+                    {/* Join Button */}
+                    <Button
+                        onClick={handleJoinMeeting}
+                        disabled={!displayName.trim() || isJoining}
+                        className="w-full bg-orange-900 hover:bg-orange-800 disabled:bg-orange-950 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl flex items-center justify-center space-x-2 transition-all border border-orange-700"
+                    >
+                        {isJoining ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Joining...</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>Join Meeting</span>
+                                <VideoIcon size={20} />
+                            </>
+                        )}
+                    </Button>
+
+                    {/* Error Message */}
+                    {connectionStatus === 'failed' && (
+                        <div className="mt-4 p-4 bg-red-900/20 border border-red-800 rounded-xl">
+                            <p className="text-red-400 text-center">
+                                Failed to join the meeting. Please try again.
+                            </p>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
@@ -298,7 +415,7 @@ export default function MeetingRoom() {
                                 </span>
                             </div>
                             <Badge variant="outline" className="text-gray-300">
-                                {username}
+                                {displayName || 'Anonymous'}
                             </Badge>
                         </div>
 
@@ -333,7 +450,7 @@ export default function MeetingRoom() {
                             <div className="aspect-video bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
                                 <Video stream={videoStream} className="w-full h-full object-cover" />
                                 <div className="absolute bottom-4 left-4">
-                                    <Badge className="bg-orange-500 text-white">You</Badge>
+                                    <Badge className="bg-orange-500 text-white">{displayName || 'You'}</Badge>
                                 </div>
                             </div>
                         ) : (
@@ -341,7 +458,7 @@ export default function MeetingRoom() {
                                 <div className="text-center">
                                     <div className="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
                                         <span className="text-white font-semibold text-2xl">
-                                            {username.charAt(0).toUpperCase()}
+                                            {(displayName || 'A').charAt(0).toUpperCase()}
                                         </span>
                                     </div>
                                     <p className="text-gray-400">Camera is off</p>

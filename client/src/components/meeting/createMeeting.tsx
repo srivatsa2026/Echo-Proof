@@ -54,7 +54,8 @@ function CreateMeeting() {
                     // Close dialog first
                     setIsDialogOpen(false)
                     setRoomName("")
-                    router.push(`/join-meeting/${sessionId}`)
+                    router.push(`/meeting/${sessionId}`)
+                    // router.push(`/join-meeting/${sessionId}`)
                 } else {
                     console.error("Failed to create meeting:", response.data.message)
                 }
