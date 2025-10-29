@@ -283,10 +283,10 @@ export default function ChatroomPage() {
           joinPayload.walletAddress = walletAddress;
         }
         chatSocket.emit("join", joinPayload);
-        // Request message history
-        chatSocket.emit("get_history", {
-          room: chatroomId
-        });
+        // NOTE: switched to fetching history from the REST API only.
+        // chatSocket.emit("get_history", {
+        //   room: chatroomId
+        // });
         toast({
           title: "Connected",
           description: "You are now connected to the chat server.",
@@ -386,59 +386,12 @@ export default function ChatroomPage() {
         setParticipants(updatedParticipants)
         setParticipantsLoaded(true)
 
-        // Load message history if available
-        if (data.history && Array.isArray(data.history)) {
-          const historyMessages = await Promise.all(data.history.map(async (msg: any) => {
-            let decryptedContent = msg.content || msg.message;
-
-            // Check if message is encrypted
-            if (msg.encryptedSymmetricKey) {
-              try {
-                const wa = walletAddress || "unknown";
-                decryptedContent = await decryptMessage(
-                  msg.content || msg.message,
-                  msg.encryptedSymmetricKey,
-                  chatroomId,
-                  wallet,
-                  wa
-                );
-              } catch (error) {
-                console.error('Error decrypting history message:', error);
-                decryptedContent = "[Encrypted message - unable to decrypt]";
-              }
-            }
-
-            // Handle both old and new sender formats
-            let sender = msg.sender;
-            if (!sender && msg.sender_id) {
-              // Old format: convert sender_id to sender object
-              sender = {
-                id: msg.sender_id,
-                name: "Unknown User",
-                smart_wallet_address: undefined,
-                wallet_address: undefined
-              };
-            }
-
-            // Ensure sender object has all required fields
-            if (sender) {
-              sender = {
-                id: sender.id,
-                name: sender.name || "Unknown User",
-                smart_wallet_address: sender.smart_wallet_address,
-                wallet_address: sender.wallet_address
-              };
-            }
-
-            return {
-              id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-              sender: sender,
-              content: decryptedContent,
-              timestamp: new Date(msg.timestamp)
-            };
-          }));
-          console.log("📚 Loading", historyMessages.length, "messages from history")
-          setMessages(historyMessages)
+        // NOTE: history coming over socket is now ignored.
+        // We fetch full history from the API to keep a single source of truth.
+        try {
+          await fetchMessages(0, false)
+        } catch (err) {
+          console.error("Error fetching messages from API after join:", err)
         }
 
         toast({
@@ -587,65 +540,6 @@ export default function ChatroomPage() {
         }
       })
 
-      chatSocket.on("history", async (data: { room: string, messages: any[] }) => {
-        console.log("📚 History received:", data)
-
-        if (data.messages && Array.isArray(data.messages)) {
-          const historyMessages = await Promise.all(data.messages.map(async (msg: any) => {
-            let decryptedContent = msg.content || msg.message;
-
-            // Check if message is encrypted
-            if (msg.encryptedSymmetricKey) {
-              try {
-                const wa = walletAddress || "unknown";
-                decryptedContent = await decryptMessage(
-                  msg.content || msg.message,
-                  msg.encryptedSymmetricKey,
-                  chatroomId,
-                  wallet,
-                  wa
-                );
-              } catch (error) {
-                console.error('Error decrypting history message:', error);
-                decryptedContent = "[Encrypted message - unable to decrypt]";
-              }
-            }
-
-            // Handle both old and new sender formats
-            let sender = msg.sender;
-            if (!sender && msg.sender_id) {
-              // Old format: convert sender_id to sender object
-              sender = {
-                id: msg.sender_id,
-                name: "Unknown User",
-                smart_wallet_address: undefined,
-                wallet_address: undefined
-              };
-            }
-
-            // Ensure sender object has all required fields
-            if (sender) {
-              sender = {
-                id: sender.id,
-                name: sender.name || "Unknown User",
-                smart_wallet_address: sender.smart_wallet_address,
-                wallet_address: sender.wallet_address
-              };
-            }
-
-            return {
-              id: msg.id || `msg-${Date.now()}-${msg.sender_id || 'unknown'}`,
-              sender: sender,
-              content: decryptedContent,
-              timestamp: new Date(msg.timestamp)
-            };
-          }));
-
-          console.log("📚 Loaded", historyMessages.length, "messages from history")
-          setMessages(historyMessages)
-        }
-      })
-
       chatSocket.on("participants_list", (data: { participants: Participant[] }) => {
         console.log("👥 Participants list:", data)
 
@@ -699,7 +593,7 @@ export default function ChatroomPage() {
         chatSocket.off("user_left");
         chatSocket.off("leave_success");
         chatSocket.off("message_received");
-        chatSocket.off("history");
+        // chatSocket.off("history"); // no longer used (history comes from REST API)
         chatSocket.off("participants_list");
         chatSocket.off("status_updated");
         chatSocket.offAny();
