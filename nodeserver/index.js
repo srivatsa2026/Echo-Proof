@@ -582,107 +582,107 @@ io.on('connection', (socket) => {
     });
 
     // Get message history for a room
-    socket.on('get_history', async (data) => {
-        logger.info(`📚 History request from ${userId}:`, data);
+    // socket.on('get_history', async (data) => {
+    //     logger.info(`📚 History request from ${userId}:`, data);
 
-        const roomId = data.room;
+    //     const roomId = data.room;
 
-        if (!roomId) {
-            socket.emit('error', { message: 'Room ID is required.' });
-            return;
-        }
+    //     if (!roomId) {
+    //         socket.emit('error', { message: 'Room ID is required.' });
+    //         return;
+    //     }
 
-        // Check if user is in the room before fetching history
-        if (!rooms[roomId] || !rooms[roomId].includes(userId)) {
-            logger.warn(`User ${userId} requested history for room ${roomId} but is not a participant.`);
-            socket.emit('error', { message: 'You are not a participant in this room.' });
-            return;
-        }
+    //     // Check if user is in the room before fetching history
+    //     if (!rooms[roomId] || !rooms[roomId].includes(userId)) {
+    //         logger.warn(`User ${userId} requested history for room ${roomId} but is not a participant.`);
+    //         socket.emit('error', { message: 'You are not a participant in this room.' });
+    //         return;
+    //     }
 
-        // Fetch room details from the database
-        let roomDetails = null;
-        try {
-            const result = await sql`
-                SELECT * FROM chatrooms WHERE id = ${roomId}
-            `;
-            if (result && result.length > 0) {
-                roomDetails = result[0];
-            }
-        } catch (error) {
-            logger.error(`❌ Error fetching room details: ${error.message}`);
-            socket.emit('error', { message: 'Error fetching room details.' });
-            return;
-        }
+    //     // Fetch room details from the database
+    //     let roomDetails = null;
+    //     try {
+    //         const result = await sql`
+    //             SELECT * FROM chatrooms WHERE id = ${roomId}
+    //         `;
+    //         if (result && result.length > 0) {
+    //             roomDetails = result[0];
+    //         }
+    //     } catch (error) {
+    //         logger.error(`❌ Error fetching room details: ${error.message}`);
+    //         socket.emit('error', { message: 'Error fetching room details.' });
+    //         return;
+    //     }
 
-        // If token gated, check token ownership
-        if (roomDetails && roomDetails.tokenGated) {
-            const { tokenAddress, tokenStandard } = roomDetails;
-            const userWallet = users[userId]?.walletAddress;
-            if (!userWallet) {
-                socket.emit('error', { message: 'Wallet address is required for token gated rooms.' });
-                logger.warn('No wallet address provided for token gated room history request.');
-                return;
-            }
-            let ownsToken = false;
-            try {
-                ownsToken = await checkTokenOwnership(tokenStandard, tokenAddress, userWallet, provider);
-            } catch (err) {
-                logger.error(`[get_history] Error checking token ownership: ${err.message}`);
-                socket.emit('error', { message: 'Error verifying token ownership.' });
-                return;
-            }
-            if (!ownsToken) {
-                logger.info(`[get_history] User ${userWallet} does NOT own required token (${tokenAddress}) for room ${roomId}.`);
-                socket.emit('error', { message: 'You do not own the required token to view this room\'s history.' });
-                return;
-            }
-        }
+    //     // If token gated, check token ownership
+    //     if (roomDetails && roomDetails.tokenGated) {
+    //         const { tokenAddress, tokenStandard } = roomDetails;
+    //         const userWallet = users[userId]?.walletAddress;
+    //         if (!userWallet) {
+    //             socket.emit('error', { message: 'Wallet address is required for token gated rooms.' });
+    //             logger.warn('No wallet address provided for token gated room history request.');
+    //             return;
+    //         }
+    //         let ownsToken = false;
+    //         try {
+    //             ownsToken = await checkTokenOwnership(tokenStandard, tokenAddress, userWallet, provider);
+    //         } catch (err) {
+    //             logger.error(`[get_history] Error checking token ownership: ${err.message}`);
+    //             socket.emit('error', { message: 'Error verifying token ownership.' });
+    //             return;
+    //         }
+    //         if (!ownsToken) {
+    //             logger.info(`[get_history] User ${userWallet} does NOT own required token (${tokenAddress}) for room ${roomId}.`);
+    //             socket.emit('error', { message: 'You do not own the required token to view this room\'s history.' });
+    //             return;
+    //         }
+    //     }
 
-        let history = [];
+    //     let history = [];
 
-        try {
-            // Fetch messages with sender information using a JOIN
-            const result = await sql`
-                SELECT
-                    cm.id,
-                    cm."senderId",
-                    cm.message,
-                    cm."encryptedSymmetricKey",
-                    cm."sentAt",
-                    u.name as sender_name,
-                    u."walletAddress" as sender_wallet_address
-                FROM chat_messages cm
-                LEFT JOIN users u ON cm."senderId" = u.id
-                WHERE cm."chatroomId" = ${roomId}
-                ORDER BY cm."sentAt" DESC
-                LIMIT 20
-            `;
+    //     try {
+    //         // Fetch messages with sender information using a JOIN
+    //         const result = await sql`
+    //             SELECT
+    //                 cm.id,
+    //                 cm."senderId",
+    //                 cm.message,
+    //                 cm."encryptedSymmetricKey",
+    //                 cm."sentAt",
+    //                 u.name as sender_name,
+    //                 u."walletAddress" as sender_wallet_address
+    //             FROM chat_messages cm
+    //             LEFT JOIN users u ON cm."senderId" = u.id
+    //             WHERE cm."chatroomId" = ${roomId}
+    //             ORDER BY cm."sentAt" DESC
+    //             LIMIT 20
+    //         `;
 
-            // Reverse to chronological order (oldest first)
-            history = result.reverse().map(row => ({
-                id: row.id,
-                sender: {
-                    id: row.senderId,
-                    name: row.sender_name || 'Unknown User',
-                    wallet_address: row.sender_wallet_address,
-                    wallet_address: row.sender_wallet_address
-                },
-                content: row.message,
-                encryptedSymmetricKey: row.encryptedSymmetricKey,
-                timestamp: row.sentAt instanceof Date ? row.sentAt.toISOString() : row.sentAt.toString()
-            }));
+    //         // Reverse to chronological order (oldest first)
+    //         history = result.reverse().map(row => ({
+    //             id: row.id,
+    //             sender: {
+    //                 id: row.senderId,
+    //                 name: row.sender_name || 'Unknown User',
+    //                 wallet_address: row.sender_wallet_address,
+    //                 wallet_address: row.sender_wallet_address
+    //             },
+    //             content: row.message,
+    //             encryptedSymmetricKey: row.encryptedSymmetricKey,
+    //             timestamp: row.sentAt instanceof Date ? row.sentAt.toISOString() : row.sentAt.toString()
+    //         }));
 
-            logger.info(`✅ Retrieved ${history.length} messages for room ${roomId}`);
+    //         logger.info(`✅ Retrieved ${history.length} messages for room ${roomId}`);
 
-        } catch (error) {
-            logger.error(`❌ Error fetching message history from database: ${error.message}`);
-        }
+    //     } catch (error) {
+    //         logger.error(`❌ Error fetching message history from database: ${error.message}`);
+    //     }
 
-        socket.emit('history', {
-            room: roomId,
-            messages: history
-        });
-    });
+    //     socket.emit('history', {
+    //         room: roomId,
+    //         messages: history
+    //     });
+    // });
 
     // Update user status
     socket.on('update_status', (data) => {
