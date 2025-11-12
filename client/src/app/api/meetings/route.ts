@@ -14,7 +14,15 @@ export async function POST(req: NextRequest) {
             tokenStandard,
             sessionId 
         } = await req.json();
-        
+        // console.log("Received meeting creation request:", { 
+        //     title, 
+        //     startTime, 
+        //     endTime, 
+        //     tokenGated, 
+        //     tokenAddress, 
+        //     tokenStandard,
+        //     sessionId 
+        // });
         const jwt = cookies().get("jwt")?.value;
 
         // Validate required fields
@@ -48,6 +56,7 @@ export async function POST(req: NextRequest) {
                 walletAddress: walletAddress
             }
         });
+        console.log("Meeting host:", userData);
 
         if (!userData) {
             return NextResponse.json(
@@ -56,7 +65,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        console.log("Meeting host:", userData);
 
         // Validate token-gating fields if enabled
         if (tokenGated && (!tokenAddress || !tokenStandard)) {
@@ -76,7 +84,8 @@ export async function POST(req: NextRequest) {
                 endTime: endTime ? new Date(endTime) : null,
                 tokenGated,
                 tokenAddress: tokenGated ? tokenAddress : null,
-                tokenStandard: tokenGated ? tokenStandard : null
+                tokenStandard: tokenGated ? tokenStandard : null,
+                summary: "",
             },
             include: {
                 host: {

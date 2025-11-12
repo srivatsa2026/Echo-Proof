@@ -94,6 +94,7 @@ model VideoMeeting {
   createdAt     DateTime             @default(now())
   participants  MeetingParticipant[]
   host          User                 @relation(fields: [hostId], references: [id])
+  summary       String
 
   @@index([hostId])
   @@index([tokenAddress])
