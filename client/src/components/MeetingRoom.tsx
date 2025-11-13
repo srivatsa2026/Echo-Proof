@@ -350,6 +350,7 @@ export default function MeetingRoom({ roomId, accessToken }: MeetingRoomProps) {
           return;
         }
         
+        await new Promise(res => setTimeout(res, 1000)); 
         await enableVideo();
         setIsVideoLoading(false);
         videoRetryCount.current = 0;
@@ -402,6 +403,7 @@ export default function MeetingRoom({ roomId, accessToken }: MeetingRoomProps) {
           return;
         }
         
+        await new Promise(res => setTimeout(res, 1000)); 
         await enableAudio();
         setIsAudioLoading(false);
         audioRetryCount.current = 0;
