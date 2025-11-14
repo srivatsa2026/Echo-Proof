@@ -1,36 +1,31 @@
-import { AccessToken, Role } from "@huddle01/server-sdk/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { AccessToken } from 'livekit-server-sdk';
 
-export const dynamic = "force-dynamic";
+// Do not cache endpoint result
+export const revalidate = 0;
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
+export async function GET(req: NextRequest) {
+  const room = req.nextUrl.searchParams.get('room');
+  const username = req.nextUrl.searchParams.get('username');
+  if (!room) {
+    return NextResponse.json({ error: 'Missing "room" query parameter' }, { status: 400 });
+  } else if (!username) {
+    return NextResponse.json({ error: 'Missing "username" query parameter' }, { status: 400 });
+  }
 
-    const roomId = searchParams.get("roomId");
+  const apiKey = process.env.LIVEKIT_API_KEY!;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  const wsUrl = process.env.LIVEKIT_URL;
 
-    if (!roomId) {
-        return new Response("Missing roomId", { status: 400 });
-    }
+  if (!apiKey || !apiSecret || !wsUrl) {
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+  }
 
-    const accessToken = new AccessToken({
-        apiKey: process.env.API_KEY!,
-        roomId: roomId as string,
-        role: Role.HOST,
-        permissions: {
-            admin: true,
-            canConsume: true,
-            canProduce: true,
-            canProduceSources: {
-                cam: true,
-                mic: true,
-                screen: true,
-            },
-            canRecvData: true,
-            canSendData: true,
-            canUpdateMetadata: true,
-        }
-    });
+  const at = new AccessToken(apiKey, apiSecret, { identity: username });
+  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true });
 
-    const token = await accessToken.toJwt();
-
-    return new Response(token, { status: 200 });
+  return NextResponse.json(
+    { token: await at.toJwt() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
