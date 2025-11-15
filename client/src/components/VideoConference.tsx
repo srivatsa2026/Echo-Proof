@@ -1064,7 +1064,7 @@ function RecordingControls({ roomId }: { roomId: string }) {
           <DialogHeader>
             <DialogTitle>Transcription</DialogTitle>
             <DialogDescription>
-              Here's the transcription of your meeting audio
+              Here&apos;s the transcription of your meeting audio
             </DialogDescription>
           </DialogHeader>
 
